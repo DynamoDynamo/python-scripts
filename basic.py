@@ -9,16 +9,48 @@ DIGITS = '0123456789'
 ###################################
 
 class Error:
-    def __init__(self, error_name, details):
+    def __init__(self, pos_start, pos_end, error_name, details): #takes in errorname, details and creates related vars
+        self.pos_start = pos_start
+        self.pos_end = pos_end
         self.error_name = error_name
         self.details = details
 
-    def as_string(self): 
-        return f'{self.error_name}:{self.details}'
+    def as_string(self):
+        result  = f'{self.error_name}: {self.details}\n'
+        result += f'File {self.pos_start.fn}, line {self.pos_start.ln + 1}'
+        return result
     
 class IllegalCharError(Error):
-    def __init__(self, details):
-        super().__init__('Illegal Character', details)
+    def __init__(self, pos_start, pos_end, details):
+        super().__init__(pos_start, pos_end, 'Illegal Character', details)
+
+
+###################################
+#POSITION
+###################################
+
+class Position:
+    def __init__(self, idx, ln, col, fn, ftxt):
+        self.idx = idx
+        self.ln = ln
+        self.col = col
+        self.fn = fn
+        self.ftxt = ftxt
+    
+    def advanced(self, current_char):
+        ## increment col and idx
+        self.idx += 1
+        self.col += 1
+
+        #If current_char is new line, go to next line and set col to zero
+        if(current_char == '\n'):
+            self.ln += 1
+            self.col = 0
+        
+        return self
+    
+    def copy(self):
+        return Position(self.idx, self.ln, self.col, self.fn, self.ftxt)
 
 
 ###################################
@@ -48,15 +80,17 @@ class Token:  #class methods end with :, instead of {}
 ###################################
 
 class Lexer:   #class to process the text
-    def __init__(self, text):
+    def __init__(self, fn, text):
+        self.fn = fn
         self.text = text
-        self.pos = -1
+        #position will start at index -1, row = 0, col = -1
+        self.pos = Position(-1, 0, -1, fn, text)
         self.current_char = None
         self.advanced()
 
     def advanced(self):
-        self.pos += 1
-        self.current_char = self.text[self.pos] if self.pos < len(self.text) else None #if pos<length of text assign current char = text[pos] else None
+        self.pos.advanced(self.current_char)
+        self.current_char = self.text[self.pos.idx] if self.pos.idx < len(self.text) else None #if pos<length of text assign current char = text[pos] else None
 
     def make_tokens(self):
         tokens = []
@@ -85,10 +119,11 @@ class Lexer:   #class to process the text
                 self.advanced()
             else:
                 # return error
+                pos_start = self.pos.copy()
                 char = self.current_char
                 self.advanced()
                 print(char)
-                return [], IllegalCharError("'" + char + "'")
+                return [], IllegalCharError(pos_start, self.pos, "'" + char + "'")
         return tokens, None
     
     def make_number(self):
@@ -113,8 +148,8 @@ class Lexer:   #class to process the text
 #RUN
 ###################################
 
-def run(text):
-    lexer = Lexer(text)   # Lexer is initialized
+def run(fn, text):
+    lexer = Lexer(fn, text)   # Lexer is initialized
     tokens, error = lexer.make_tokens()
 
     return tokens, error
