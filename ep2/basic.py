@@ -180,14 +180,26 @@ class Parser:
             self.current_tok = self.tokens[self.tok_idx]
         return self.current_tok
     
-    def factor():
-        pass
+    def factor(self):
+        tok = self.current_tok
+        if tok.type in (TT_INT, TT_FLOAT):
+            self.advance()
+            return NumberNode(tok)
 
-    def term():
-        pass
+    def term(self):
+        return self.bin_op(self.factor(), (TT_MUL, TT_DIV))
 
-    def expr():
-        pass
+    def expr(self):
+        return self.bin_op(self.term(), (TT_PLUS, TT_MINUS))
+
+    def bin_op(self, func, ops):
+        left = func
+
+        while self.current_tok in ops:
+            op_tok = self.current_tok
+            right = func
+            left = BinOpNode(left, op_tok, right)
+        return left
 
 
 ###################################
