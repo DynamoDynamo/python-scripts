@@ -76,7 +76,7 @@ class Token:  #class methods end with :, instead of {}
         return f'{self.type}'
     
 ###################################
-#LEXER
+#LEXER - creates tokens
 ###################################
 
 class Lexer:   #class to process the text
@@ -143,7 +143,53 @@ class Lexer:   #class to process the text
             return Token(TT_INT, int(num_str))
         else:
             return Token(TT_FLOAT, float(num_str))
+
+###################################
+#NODES
+###################################
+
+class NumberNode:
+    def __init__(self, tok):
+        self.tok = tok
         
+    def __repr__(self):
+        return f'{self.tok}'
+    
+class BinOpNode:
+    def __init__(self, left_node, op_tok, right_node):
+        self.left_node = left_node
+        self.op_tok = op_tok
+        self.right_node = right_node
+
+    def __repr__(self):
+        return f'({self.left_node}, {self.op_tok}, {self.right_node})'
+
+###################################
+#PARSER - puts a syntax format to tokens created by Lexer class
+###################################
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.tok_idx = 1
+        self.advance()
+
+    def advance(self):
+        self.tok_idx += 1
+        if self.tok_idx < len(self.tokens):
+            self.current_tok = self.tokens[self.tok_idx]
+        return self.current_tok
+    
+    def factor():
+        pass
+
+    def term():
+        pass
+
+    def expr():
+        pass
+
+
 ###################################
 #RUN
 ###################################
