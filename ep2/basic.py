@@ -47,7 +47,7 @@ class Position:
         self.fn = fn
         self.ftxt = ftxt
     
-    def advanced(self, current_char):
+    def advanced(self, current_char=None):
         ## increment col and idx
         self.idx += 1
         self.col += 1
@@ -75,11 +75,20 @@ TT_MUL    = 'MUL'
 TT_DIV    = 'DIV'
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
+TT_EOF    = 'EOF'
 
 class Token:  #class methods end with :, instead of {}
-    def __init__(self, type_, value=None): #__iniit__  is default constructor used to initialize values
+    def __init__(self, type_, value=None, pos_start=None, pos_end=None): #__iniit__  is default constructor used to initialize values
         self.type = type_ #self is the instance itself, type_ is input, type is var in basic.py
         self.value = value
+
+        if pos_start:
+            self.pos_start = pos_start.copy()
+            self.pos_end = pos_start.copy()
+            self.pos_end.advanced()
+
+        if pos_end:
+            self.pos_end = pos_end
     
     def __repr__(self):   #another dunder method that defines string representation of object
         if self.value: return f'{self.type}:{self.value}'
@@ -110,35 +119,37 @@ class Lexer:   #class to process the text
             elif self.current_char in DIGITS:
                 tokens.append(self.make_number())
             elif self.current_char == '+':
-                tokens.append(Token(TT_PLUS))
+                tokens.append(Token(TT_PLUS, pos_start=self.pos))
                 self.advanced()
             elif self.current_char == '-':
-                tokens.append(Token(TT_MINUS))
+                tokens.append(Token(TT_MINUS, pos_start=self.pos))
                 self.advanced()
             elif self.current_char == '*':
-                tokens.append(Token(TT_MUL))
+                tokens.append(Token(TT_MUL, pos_start=self.pos))
                 self.advanced()
             elif self.current_char == '/':
-                tokens.append(Token(TT_DIV))
+                tokens.append(Token(TT_DIV, pos_start=self.pos))
                 self.advanced()
             elif self.current_char == '(':
-                tokens.append(Token(TT_LPAREN))
+                tokens.append(Token(TT_LPAREN, pos_start=self.pos))
                 self.advanced()
             elif self.current_char == ')':
-                tokens.append(Token(TT_RPAREN))
+                tokens.append(Token(TT_RPAREN, pos_start=self.pos))
                 self.advanced()
             else:
                 # return error
                 pos_start = self.pos.copy()
                 char = self.current_char
                 self.advanced()
-                print(char)
                 return [], IllegalCharError(pos_start, self.pos, "'" + char + "'")
+            
+        tokens.append(Token(TT_EOF, pos_start=self.pos))
         return tokens, None
     
     def make_number(self):
         num_str = ''
         dot_count = 0
+        pos_start = self.pos.copy()
 
         while self.current_char != None and self.current_char in DIGITS + '.':
             if self.current_char == '.':
@@ -150,9 +161,9 @@ class Lexer:   #class to process the text
             self.advanced()
         
         if dot_count == 0:
-            return Token(TT_INT, int(num_str))
+            return Token(TT_INT, int(num_str), pos_start, self.pos)
         else:
-            return Token(TT_FLOAT, float(num_str))
+            return Token(TT_FLOAT, float(num_str), pos_start, self.pos)
         
 ###################################
 #NODES
@@ -173,7 +184,30 @@ class BinOpNode:
 
     def __repr__(self):
         return f'({self.left_node}, {self.op_tok}, {self.right_node})'
-    
+
+###################################
+#PARSE RESULT
+###################################
+
+class ParseResult:
+    def __init__(self):
+        self.error = None
+        self.node = None
+
+    def register(self, res):
+        if isinstance(res, ParseResult):
+            if res.error: self.error = res.error
+            return res.node
+        return res
+
+    def success(self, node):
+        self.node = node
+        return self
+
+    def failure(self, error):
+        self.error = error
+        return self 
+
 ###################################
 #PARSER
 ###################################
@@ -192,16 +226,28 @@ class Parser:
     
     def parse(self):
         res = self.expr()
+        if not res.error and self.current_tok.type != TT_EOF:
+            return res.failure(
+                InvalidSyntaxError(
+                    self.current_tok.pos_start, self.current_tok.pos_end,
+                    "Expected '+', '-', '*', or '/'"
+                )
+            )
         return res
     
     def factor(self):
+        res = ParseResult()
         tok = self.current_tok
-        print("in factor")
-        print(tok)
-        print(tok.type)
+
         if tok.type in (TT_INT, TT_FLOAT):
-            self.advance()
-            return NumberNode(tok)
+            res.register(self.advance())
+            return res.success(NumberNode(tok))
+        
+        return res.failure(
+            InvalidSyntaxError(
+                tok.pos_start, tok.pos_end, "Expected int or float"
+            )
+        )
         
     def term(self):
         return self.bin_op(self.factor, (TT_MUL, TT_DIV))
@@ -210,15 +256,17 @@ class Parser:
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
 
     def bin_op(self, func, ops):
-        left = func()
-        print("is the left")
-        print(left)
+        res = ParseResult()
+        left = res.register(func())
+        if res.error: return res
+
         while self.current_tok.type in ops:
             op_tok = self.current_tok
-            self.advance()
-            right = func()
+            res.register(self.advance())
+            right = res.register(func())
+            if res.error: return res
             left = BinOpNode(left, op_tok, right)
-        return left
+        return res.success(left)
 
 
 ###################################
@@ -229,11 +277,10 @@ def run(fn, text):
     #generates tokens
     lexer = Lexer(fn, text)   # Lexer is initialized
     tokens, error = lexer.make_tokens()
-    if tokens: print(tokens)
     if error: return None, error
 
     #generates AST
     parser = Parser(tokens)
     ast = parser.parse()
 
-    return ast, None
+    return ast.node, ast.error
