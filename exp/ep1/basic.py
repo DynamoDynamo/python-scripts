@@ -18,8 +18,8 @@ class Error:
         return f'{self.error_name}: {self.details}\n File {self.pos_start.fileName}, Line {self.pos_start.rowPos + 1}'
     
 class IllegalCharError(Error):
-    def __init__(self, pos_start, error_name, details):
-        super().__init__(pos_start, error_name, details)
+    def __init__(self, pos_start, details):
+        super().__init__(pos_start, "IllegalCharError", details)
 
 ###################
 #Position
@@ -103,8 +103,6 @@ class Lexer:
     def make_tokens(self):
         tokens = []
         while self.current_char != None:
-            print("is the current char")
-            print(self.current_char)
             if self.current_char in ' \t':
                 self.advancePosAndassignChar()
             elif self.current_char in DIGITS:
@@ -127,7 +125,15 @@ class Lexer:
             elif self.current_char == ')':
                 tokens.append(Token(TT_RPAREN))
                 self.advancePosAndassignChar()
-        return tokens
+            else:
+                #return error
+                #get the current position and characther before advancing to next postion
+                currentPos = self.pos.getPositionObj()
+                currentChar = self.current_char
+                self.advancePosAndassignChar()
+                return [], IllegalCharError(currentPos, currentChar)
+
+        return tokens, None
 
     def assignNumberToken(self):
         number_str = ''
@@ -150,7 +156,7 @@ class Lexer:
 #RUN
 ###################
 
-def run(fn, text):
-    lexer = Lexer(fn,text)
+def run(fileName, text):
+    lexer = Lexer(fileName,text)
     return lexer.make_tokens()
 
