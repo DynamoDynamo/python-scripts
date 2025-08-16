@@ -5,6 +5,23 @@
 DIGITS = '0123456789'
 
 ###################
+#ERROR
+###################
+
+class Error:
+    def __init__(self, pos_start, error_name, details):
+        self.pos_start = pos_start
+        self.error_name = error_name
+        self.details = details
+
+    def as_string(self):
+        return f'{self.error_name}: {self.details}\n File {self.pos_start.fileName}, Line {self.pos_start.rowPos + 1}'
+    
+class IllegalCharError(Error):
+    def __init__(self, pos_start, error_name, details):
+        super().__init__(pos_start, error_name, details)
+
+###################
 #Position
 #In a text position is defined by
 #column, row/line and index is basically col position
@@ -19,7 +36,7 @@ class Position:
         self.indexPos = indexPos
         self.rowPos = rowPos
         self.colPos = colPos
-        self.fn = fn
+        self.fileName = fn
         self.text = text
 
     #Why is it taking current_char?
@@ -36,7 +53,7 @@ class Position:
         return self
     
     def getPositionObj(self):
-        return Position(self.indexPos, self.rowPos, self.colPos, self.fn, self.text)
+        return Position(self.indexPos, self.rowPos, self.colPos, self.fileName, self.text)
 
 ###################
 #Token
@@ -76,7 +93,7 @@ class Lexer:
         self.current_char = None
         #this method in constructor make sure current_char is 
         #picked up at index 0
-        self.assignCurrentChar()
+        self.advancePosAndassignChar()
 
     def advancePosAndassignChar(self):
         self.pos.incrementColAndIndex(self.current_char)
@@ -86,14 +103,32 @@ class Lexer:
     def make_tokens(self):
         tokens = []
         while self.current_char != None:
-            if self.current_char == '\t':
+            print("is the current char")
+            print(self.current_char)
+            if self.current_char in ' \t':
                 self.advancePosAndassignChar()
             elif self.current_char in DIGITS:
-                tokens.append(self.make_tokens())
+                tokens.append(self.assignNumberToken())
             elif self.current_char == '+':
                 tokens.append(Token(TT_PLUS))
-            
-    
+                self.advancePosAndassignChar()
+            elif self.current_char == '-':
+                tokens.append(Token(TT_MINUS))
+                self.advancePosAndassignChar()
+            elif self.current_char == '*':
+                tokens.append(Token(TT_MUL))
+                self.advancePosAndassignChar()
+            elif self.current_char == '/':
+                tokens.append(Token(TT_DIV))
+                self.advancePosAndassignChar()
+            elif self.current_char == '(':
+                tokens.append(Token(TT_LPAREN))
+                self.advancePosAndassignChar()
+            elif self.current_char == ')':
+                tokens.append(Token(TT_RPAREN))
+                self.advancePosAndassignChar()
+        return tokens
+
     def assignNumberToken(self):
         number_str = ''
         dot_count = 0
@@ -111,5 +146,11 @@ class Lexer:
             return Token(TT_INT, int(number_str))
 
 
+###################
+#RUN
+###################
 
+def run(fn, text):
+    lexer = Lexer(fn,text)
+    return lexer.make_tokens()
 
