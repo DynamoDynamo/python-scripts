@@ -9,21 +9,17 @@ DIGITS = '0123456789'
 ###################
 
 class Error:
-    def __init__(self, currentPosition, error_name, details):
-        self.currentPosition =currentPosition
+    def __init__(self, pos_start, error_name, details):
+        self.pos_start = pos_start
         self.error_name = error_name
         self.details = details
 
     def as_string(self):
-        return f'{self.error_name}: {self.details}\n File {self.currentPosition.fileName}, Line {self.currentPosition.rowPos + 1}'
+        return f'{self.error_name}: {self.details}\n File {self.pos_start.fileName}, Line {self.pos_start.rowPos + 1}'
     
 class IllegalCharError(Error):
     def __init__(self, pos_start, details):
         super().__init__(pos_start, "IllegalCharError", details)
-
-class InvalidSytaxError(Error):
-    def __init__(self, pos_start, details):
-        super().__init__(pos_start, "Invalid syntax", details)
 
 ###################
 #Position
@@ -155,78 +151,6 @@ class Lexer:
         else:
             return Token(TT_INT, int(number_str))
 
-###################
-#NODE REPRESENTATION
-###################
-class NumbNode:
-    def __init__(self, number):
-        self.number = number
-        
-    def __repr__(self):
-        return f'{self.number}'
-    
-class BinaryOpNode:
-    def __init__(self, left_node, operator, right_node):
-        self.left_node = left_node
-        self.operator = operator
-        self.right_node = right_node
-
-    def __repr__(self):
-        return f'({self.left_node}{self.operator}{self.right_node})'
-
-###################
-#PARSE RESULT
-###################
-class ParseResult:
-    def __init__(self):
-        self.error = None
-        self.node = None
-
-#Why are they doing this
-#through register and assignError, they are ass self.error
-    def register(self, inputObj):
-        if isinstance(inputObj, ParseResult):
-            if inputObj.error: self.error = inputObj.error
-        return inputObj
-
-    def assignNode(self, node):
-        self.node = node
-        return self
-    
-    def assignError(self, error):
-        self.error = error
-        return self
-
-###################
-#PARSER
-###################
-
-class Parser:
-    def __init__(self, tokens):
-        self.tokens = tokens
-        self.tokenIndex = -1
-        self.current_token = self.getNextToken()
-
-    def getNextToken(self):
-        self.tokenIndex += 1
-        if self.tokenIndex < len(self.tokens):
-            return self.tokens[self.tokenIndex]
-        return None
-    
-    def factor(self):
-        parseResultObj = ParseResult()
-        int_float_token = self.current_token
-
-        if int_float_token.type in (TT_INT, TT_FLOAT):
-            self.current_token = self.getNextToken()
-            parseResultObj.register(self.current_token)
-            return parseResultObj.assignNode(NumbNode(self.current_token))
-        
-        return parseResultObj.assignError(
-            InvalidSytaxError(
-               
-            )
-        )
 
 ###################
 #RUN
