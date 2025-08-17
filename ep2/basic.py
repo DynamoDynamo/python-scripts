@@ -46,6 +46,9 @@ class Position:
         self.col = col
         self.fn = fn
         self.ftxt = ftxt
+
+    def __repr__(self):
+        return f'index: {self.idx}\nline: {self.ln}\ncolumn: {self.col}\nfileName: {self.fn}\ntext: {self.ftxt}'
     
     def advanced(self, current_char=None):
         ## increment col and idx
@@ -160,6 +163,10 @@ class Lexer:   #class to process the text
                 num_str += self.current_char
             self.advanced()
         
+        print("What's the diff btw self.pos and self.pos.copy()?")
+        print(self.pos)
+        print('self.copy')
+        print(self.pos.copy())
         if dot_count == 0:
             return Token(TT_INT, int(num_str), pos_start, self.pos)
         else:

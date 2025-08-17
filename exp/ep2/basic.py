@@ -9,17 +9,21 @@ DIGITS = '0123456789'
 ###################
 
 class Error:
-    def __init__(self, pos_start, error_name, details):
-        self.pos_start = pos_start
+    def __init__(self, currentPos, error_name, details):
+        self.currentPos = currentPos
         self.error_name = error_name
         self.details = details
 
     def as_string(self):
-        return f'{self.error_name}: {self.details}\n File {self.pos_start.fileName}, Line {self.pos_start.rowPos + 1}'
+        return f'{self.error_name}: {self.details}\n File {self.currentPos.fileName}, Line {self.currentPos.rowPos + 1}'
     
 class IllegalCharError(Error):
-    def __init__(self, pos_start, details):
-        super().__init__(pos_start, "IllegalCharError", details)
+    def __init__(self, currentPos, details):
+        super().__init__(currentPos, "IllegalCharError", details)
+
+class InvalidSystemError(Error):
+    def __init__(self, currentPos, details):
+        super().__init__(currentPos, "Invalid System error", details)
 
 ###################
 #Position
@@ -38,6 +42,9 @@ class Position:
         self.colPos = colPos
         self.fileName = fn
         self.text = text
+
+    def __repr__(self):
+        return f'index: {self.indexPos}\nline: {self.rowPos}\ncolumn: {self.colPos}\nfileName: {self.fileName}\ntext: {self.text}'
 
     #Why is it taking current_char?
     #Usually the increment will be on index and col in a line
@@ -67,11 +74,14 @@ TT_MUL    = 'MUL'
 TT_DIV    = 'DIV'
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
+TT_EOF    = 'EOF'
+#Why position is used in token class
 
 class Token:
-    def __init__(self, type, value=None):
+    def __init__(self, type, currentPos=None, value=None):
         self.type = type
         self.value = value
+        self.currentPos = currentPos
 
     def __repr__(self):
         if self.value: return f'{self.type}: {self.value}'
@@ -108,31 +118,31 @@ class Lexer:
             elif self.current_char in DIGITS:
                 tokens.append(self.assignNumberToken())
             elif self.current_char == '+':
-                tokens.append(Token(TT_PLUS))
+                tokens.append(Token(TT_PLUS, self.pos))
                 self.advancePosAndassignChar()
             elif self.current_char == '-':
-                tokens.append(Token(TT_MINUS))
+                tokens.append(Token(TT_MINUS, self.pos))
                 self.advancePosAndassignChar()
             elif self.current_char == '*':
-                tokens.append(Token(TT_MUL))
+                tokens.append(Token(TT_MUL, self.pos))
                 self.advancePosAndassignChar()
             elif self.current_char == '/':
-                tokens.append(Token(TT_DIV))
+                tokens.append(Token(TT_DIV, self.pos))
                 self.advancePosAndassignChar()
             elif self.current_char == '(':
-                tokens.append(Token(TT_LPAREN))
+                tokens.append(Token(TT_LPAREN, self.pos))
                 self.advancePosAndassignChar()
             elif self.current_char == ')':
-                tokens.append(Token(TT_RPAREN))
+                tokens.append(Token(TT_RPAREN, self.pos))
                 self.advancePosAndassignChar()
             else:
                 #return error
                 #get the current position and characther before advancing to next postion
-                currentPos = self.pos.getPositionObj()
                 currentChar = self.current_char
                 self.advancePosAndassignChar()
-                return [], IllegalCharError(currentPos, currentChar)
-
+                return [], IllegalCharError(self.pos, currentChar)
+            
+        tokens.append(Token(TT_EOF, self.pos))
         return tokens, None
 
     def assignNumberToken(self):
@@ -147,9 +157,61 @@ class Lexer:
             self.advancePosAndassignChar()
 
         if dot_count == 1:
-            return Token(TT_FLOAT, float(number_str))
+            return Token(TT_FLOAT, self.pos, value = float(number_str))
         else:
-            return Token(TT_INT, int(number_str))
+            return Token(TT_INT, self.pos, value = int(number_str))
+
+###################
+#NODES
+###################
+
+class NumberNode:
+
+    def __init__(self, token):
+        self.token = token
+
+    def __repr__(self):
+        return f'{self.token}'
+    
+class BinOpNode:
+    def __init__(self, left_node, operator, right_node):
+        self.left_node = left_node
+        self.right_node = right_node
+        self.operator = operator
+
+    def __repr__(self):
+        return f'({self.left_node} {self.operator} {self.right_node})'
+
+###################
+#PARSER
+###################
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.tok_index = -1
+        self.current_token = None
+        self.advanceAndAssignToken()
+
+    def advanceAndAssignCurrentToken(self):
+        self.tok_index += 1
+        if self.tok_index < len(self.tokens):
+            self.current_token = self.tokens[self.tok_index]
+        else: self.current_token = None
+
+    def factor(self):
+        if(self.current_token.type in (TT_INT, TT_FLOAT)):
+            token = self.current_token
+            self.advanceAndAssignCurrentToken()
+            return NumberNode(token)
+        
+    def term(self):
+        previousNode = 
+        nextNode = 
+        if(self.current_token.type in (TT_MUL, TT_DIV)):
+            return BinOpNode()
+
+    
 
 
 ###################
@@ -158,5 +220,11 @@ class Lexer:
 
 def run(fileName, text):
     lexer = Lexer(fileName,text)
-    return lexer.make_tokens()
+    tokens, error =  lexer.make_tokens()
+    if error: return None, error
+
+    #generate syntax, if there are tokens
+    parser = Parser(tokens)
+
+
 
