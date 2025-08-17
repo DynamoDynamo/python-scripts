@@ -191,7 +191,8 @@ class Parser:
         self.tokens = tokens
         self.tok_index = -1
         self.current_token = None
-        self.advanceAndAssignToken()
+        #as soon as Parser is initialized self.currentToken is int
+        self.advanceAndAssignCurrentToken()
 
     def advanceAndAssignCurrentToken(self):
         self.tok_index += 1
@@ -199,21 +200,25 @@ class Parser:
             self.current_token = self.tokens[self.tok_index]
         else: self.current_token = None
 
-    def factor(self):
+#This method advances only if currentToken is a number and returns numberNode form of currenttoken
+    def getNumberNodeAndAdvance(self):
         if(self.current_token.type in (TT_INT, TT_FLOAT)):
             token = self.current_token
             self.advanceAndAssignCurrentToken()
             return NumberNode(token)
         
-    def term(self):
-        previousNode = 
-        nextNode = 
-        if(self.current_token.type in (TT_MUL, TT_DIV)):
-            return BinOpNode()
-
+    def getTerm(self):
+        left = self.getNumberNodeAndAdvance()
+        #at this point self.current token is MUL
+        while self.current_token.type in (TT_MUL, TT_DIV):
+            operator = self.current_token.type
+            # advance to number
+            self.advanceAndAssignCurrentToken()
+            # get current number token and advance to next token which is operator
+            right = self.getNumberNodeAndAdvance()
+            left = BinOpNode(left, operator, right)
+        return left
     
-
-
 ###################
 #RUN
 ###################
@@ -225,6 +230,9 @@ def run(fileName, text):
 
     #generate syntax, if there are tokens
     parser = Parser(tokens)
+    ast = parser.getTerm()
+
+    return ast, None
 
 
 

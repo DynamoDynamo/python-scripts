@@ -163,10 +163,6 @@ class Lexer:   #class to process the text
                 num_str += self.current_char
             self.advanced()
         
-        print("What's the diff btw self.pos and self.pos.copy()?")
-        print(self.pos)
-        print('self.copy')
-        print(self.pos.copy())
         if dot_count == 0:
             return Token(TT_INT, int(num_str), pos_start, self.pos)
         else:
@@ -201,7 +197,12 @@ class ParseResult:
         self.error = None
         self.node = None
 
+    def __repr__(self):
+        return f'{self.node}: {self.error}'
+
     def register(self, res):
+        print('in register')
+        print(res)
         if isinstance(res, ParseResult):
             if res.error: self.error = res.error
             return res.node
@@ -257,10 +258,16 @@ class Parser:
         )
         
     def term(self):
-        return self.bin_op(self.factor, (TT_MUL, TT_DIV))
+        term =  self.bin_op(self.factor, (TT_MUL, TT_DIV))
+        print('is term')
+        print(term)
+        return term
 
     def expr(self):
-        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+        expression = self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+        print('is expression')
+        print(expression)
+        return expression
 
     def bin_op(self, func, ops):
         res = ParseResult()
