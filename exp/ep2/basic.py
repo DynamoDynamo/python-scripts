@@ -275,7 +275,7 @@ def run(fileName, text):
     tokens, error =  lexer.make_tokens()
     if error: return None, error
 
-    #generate syntax, if there are tokens
+    #generate abstract syntax tree (ast), if there are tokens
     parser = Parser(tokens)
     ast = parser.getExpression()
 

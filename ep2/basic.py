@@ -234,8 +234,6 @@ class Parser:
     
     def parse(self):
         res = self.expr()
-        print('final res')
-        print(res)
         if not res.error and self.current_tok.type != TT_EOF:
             return res.failure(
                 InvalidSyntaxError(
@@ -270,9 +268,6 @@ class Parser:
     def bin_op(self, func, ops):
         res = ParseResult()
         left = res.register(func())
-        print('left and funct')
-        print(left)
-        print(ops)
         if res.error: return res
 
         while self.current_tok.type in ops:
