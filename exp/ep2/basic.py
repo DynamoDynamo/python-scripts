@@ -21,7 +21,7 @@ class IllegalCharError(Error):
     def __init__(self, currentPos, details):
         super().__init__(currentPos, "IllegalCharError", details)
 
-class InvalidSystemError(Error):
+class InvalidSyntaxError(Error):
     def __init__(self, currentPos, details):
         super().__init__(currentPos, "Invalid System error", details)
 
@@ -183,6 +183,22 @@ class BinOpNode:
         return f'({self.left_node} {self.operator} {self.right_node})'
 
 ###################
+#RESULT TO AN OBJECT
+###################
+class ResultObject:
+    def __init__(self):
+        self.syntax = None
+        self.error = None
+
+    def assignSyntax(self, syntax):
+        self.syntax = syntax
+        return self
+    
+    def assignError(self, error):
+        self.error = error
+        return self
+
+###################
 #PARSER
 ###################
 
@@ -202,22 +218,51 @@ class Parser:
 
 #This method advances only if currentToken is a number and returns numberNode form of currenttoken
     def getNumberNodeAndAdvance(self):
-        if(self.current_token.type in (TT_INT, TT_FLOAT)):
-            token = self.current_token
+        parseResult = ResultObject()
+        token = self.current_token
+        if(token.type in (TT_INT, TT_FLOAT)):
             self.advanceAndAssignCurrentToken()
-            return NumberNode(token)
+            return parseResult.assignSyntax(NumberNode(token))
+        return parseResult.assignError(
+            InvalidSyntaxError(self.current_token.currentPos, "Expected int or Float number")
+        )
+    
+    def getExpression(self):
+        finalResult = ResultObject()
+        left = self.getTerm()
+        if left.error: return left
+
+        left = left.syntax
+        while self.current_token.type in (TT_PLUS, TT_MINUS):
+            operator = self.current_token.type
+            self.advanceAndAssignCurrentToken()
+            right = self.getTerm()
+            if right.error: return right
+            right = right.syntax
+            left = BinOpNode(left, operator, right)
+        return finalResult.assignSyntax(left)
+        
         
     def getTerm(self):
-        left = self.getNumberNodeAndAdvance()
-        #at this point self.current token is MUL
+        finalResult = ResultObject()
+        #left node here is instance of resultObject
+        #the value is either a number node or error
+        #if error, return error
+        left = self.getNumberNodeAndAdvance() 
+        if left.error: return left
+        #at this point self.current token is MUL 
+        left = left.syntax
         while self.current_token.type in (TT_MUL, TT_DIV):
             operator = self.current_token.type
             # advance to number
             self.advanceAndAssignCurrentToken()
+            # here right is instance of result object
             # get current number token and advance to next token which is operator
             right = self.getNumberNodeAndAdvance()
+            if right.error: return right
+            right = right.syntax
             left = BinOpNode(left, operator, right)
-        return left
+        return finalResult.assignSyntax(left)
     
 ###################
 #RUN
@@ -230,9 +275,9 @@ def run(fileName, text):
 
     #generate syntax, if there are tokens
     parser = Parser(tokens)
-    ast = parser.getTerm()
+    ast = parser.getExpression()
 
-    return ast, None
+    return ast.syntax, ast.error
 
 
 

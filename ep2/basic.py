@@ -200,9 +200,9 @@ class ParseResult:
     def __repr__(self):
         return f'{self.node}: {self.error}'
 
+#all register is doing is assigning error if input is ParseResult
+#if input is not parseResult returning whatever the input is
     def register(self, res):
-        print('in register')
-        print(res)
         if isinstance(res, ParseResult):
             if res.error: self.error = res.error
             return res.node
@@ -234,6 +234,8 @@ class Parser:
     
     def parse(self):
         res = self.expr()
+        print('final res')
+        print(res)
         if not res.error and self.current_tok.type != TT_EOF:
             return res.failure(
                 InvalidSyntaxError(
@@ -259,19 +261,18 @@ class Parser:
         
     def term(self):
         term =  self.bin_op(self.factor, (TT_MUL, TT_DIV))
-        print('is term')
-        print(term)
         return term
 
     def expr(self):
         expression = self.bin_op(self.term, (TT_PLUS, TT_MINUS))
-        print('is expression')
-        print(expression)
         return expression
 
     def bin_op(self, func, ops):
         res = ParseResult()
         left = res.register(func())
+        print('left and funct')
+        print(left)
+        print(ops)
         if res.error: return res
 
         while self.current_tok.type in ops:
