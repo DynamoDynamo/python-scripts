@@ -228,41 +228,43 @@ class Parser:
         )
     
     def getExpression(self):
-        finalResult = ResultObject()
-        left = self.getTerm()
-        if left.error: return left
+        expression = self.getOperation(self.getTerm, (TT_PLUS, TT_MINUS))
+        print('this is current token')
+        print(self.current_token)
+        print(self.current_token != TT_EOF)
+        if not expression.error and self.current_token.type != TT_EOF:
+            return expression.assignError(
+            InvalidSyntaxError(self.current_token.currentPos, "Expected '+', '-', '*', or '/'")
+            )
+        return expression
 
-        left = left.syntax
-        while self.current_token.type in (TT_PLUS, TT_MINUS):
-            operator = self.current_token.type
-            self.advanceAndAssignCurrentToken()
-            right = self.getTerm()
-            if right.error: return right
-            right = right.syntax
-            left = BinOpNode(left, operator, right)
-        return finalResult.assignSyntax(left)
         
         
     def getTerm(self):
+        return self.getOperation(self.getNumberNodeAndAdvance, (TT_MUL, TT_DIV))
+    
+    #Comments for inputs related to getTerm
+    def getOperation(self, func, tokens):
         finalResult = ResultObject()
         #left node here is instance of resultObject
         #the value is either a number node or error
         #if error, return error
-        left = self.getNumberNodeAndAdvance() 
+        left = func() 
         if left.error: return left
         #at this point self.current token is MUL 
         left = left.syntax
-        while self.current_token.type in (TT_MUL, TT_DIV):
+        while self.current_token.type in tokens:
             operator = self.current_token.type
             # advance to number
             self.advanceAndAssignCurrentToken()
             # here right is instance of result object
             # get current number token and advance to next token which is operator
-            right = self.getNumberNodeAndAdvance()
+            right = func()
             if right.error: return right
             right = right.syntax
             left = BinOpNode(left, operator, right)
         return finalResult.assignSyntax(left)
+
     
 ###################
 #RUN
@@ -278,6 +280,7 @@ def run(fileName, text):
     ast = parser.getExpression()
 
     return ast.syntax, ast.error
+    # return tokens, None
 
 
 
