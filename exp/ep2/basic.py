@@ -190,6 +190,11 @@ class ResultObject:
         self.syntax = None
         self.error = None
 
+    def __repr__(self):
+        if(self.error):
+            return self.error.as_string()
+        return f'{self.syntax}:{self.error}'
+
     def assignSyntax(self, syntax):
         self.syntax = syntax
         return self
@@ -223,47 +228,105 @@ class Parser:
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advanceAndAssignCurrentToken()
             return parseResult.assignSyntax(NumberNode(token))
+        elif(token.type == TT_LPAREN):
+            #if token is LeftParen advance to the next token
+            self.advanceAndAssignCurrentToken()
+            #get the expression upto till RightParen is encounterd
+            expr = self.getExpression()
+            #if rightParen is not encountered return Error
+            #if encountered andvance to next position and 
+            #return expression which will be used as numberNode in term
+            if(self.current_token.type == TT_RPAREN):
+                self.advanceAndAssignCurrentToken()
+                return expr
+            else: 
+                return parseResult.assignError(
+                    InvalidSyntaxError(self.current_token.currentPos, "Expected )")
+                    )
         return parseResult.assignError(
             InvalidSyntaxError(self.current_token.currentPos, "Expected int or Float number")
         )
     
     def getExpression(self):
-        expression = self.getOperation(self.getTerm, (TT_PLUS, TT_MINUS))
-        print('this is current token')
-        print(self.current_token)
-        print(self.current_token != TT_EOF)
+        finalResult = ResultObject()
+    #     #left node here is instance of resultObject
+    #     #the value is either a number node or error
+    #     #if error, return error
+        left = self.getTerm() 
+        if left.error: return left
+        #at this point self.current token is MUL 
+        left = left.syntax
+        while self.current_token.type in (TT_PLUS, TT_MINUS):
+            operator = self.current_token.type
+            # advance to number
+            self.advanceAndAssignCurrentToken()
+            # here right is instance of result object
+            # get current number token and advance to next token which is operator
+            right = self.getTerm()
+            if right.error: return right
+            right = right.syntax
+            left = BinOpNode(left, operator, right)
+        return finalResult.assignSyntax(left)
+        
+    
+    def getFinalParserObject(self):
+        expression = self.getExpression()
+         # expression = self.getOperation(self.getTerm, (TT_PLUS, TT_MINUS))
+        #If expression has no error and currtent_token is not endOfFile
+        #then the expression must be in form of continuous numbers
+        #like 1 1, which is not a valid expression
         if not expression.error and self.current_token.type != TT_EOF:
             return expression.assignError(
             InvalidSyntaxError(self.current_token.currentPos, "Expected '+', '-', '*', or '/'")
             )
         return expression
 
+
         
         
     def getTerm(self):
-        return self.getOperation(self.getNumberNodeAndAdvance, (TT_MUL, TT_DIV))
-    
-    #Comments for inputs related to getTerm
-    def getOperation(self, func, tokens):
         finalResult = ResultObject()
         #left node here is instance of resultObject
         #the value is either a number node or error
         #if error, return error
-        left = func() 
+        left = self.getNumberNodeAndAdvance() 
         if left.error: return left
         #at this point self.current token is MUL 
         left = left.syntax
-        while self.current_token.type in tokens:
+        while self.current_token.type in (TT_MUL, TT_DIV):
             operator = self.current_token.type
             # advance to number
             self.advanceAndAssignCurrentToken()
             # here right is instance of result object
             # get current number token and advance to next token which is operator
-            right = func()
+            right = self.getNumberNodeAndAdvance()
             if right.error: return right
             right = right.syntax
             left = BinOpNode(left, operator, right)
         return finalResult.assignSyntax(left)
+        # return self.getOperation(self.getNumberNodeAndAdvance, (TT_MUL, TT_DIV))
+    
+    # #Comments for inputs related to getTerm
+    # def getOperation(self, func, tokens):
+    #     finalResult = ResultObject()
+    #     #left node here is instance of resultObject
+    #     #the value is either a number node or error
+    #     #if error, return error
+    #     left = func() 
+    #     if left.error: return left
+    #     #at this point self.current token is MUL 
+    #     left = left.syntax
+    #     while self.current_token.type in tokens:
+    #         operator = self.current_token.type
+    #         # advance to number
+    #         self.advanceAndAssignCurrentToken()
+    #         # here right is instance of result object
+    #         # get current number token and advance to next token which is operator
+    #         right = func()
+    #         if right.error: return right
+    #         right = right.syntax
+    #         left = BinOpNode(left, operator, right)
+    #     return finalResult.assignSyntax(left)
 
     
 ###################
@@ -275,9 +338,9 @@ def run(fileName, text):
     tokens, error =  lexer.make_tokens()
     if error: return None, error
 
-    #generate abstract syntax tree (ast), if there are tokens
+    # generate abstract syntax tree (ast), if there are tokens
     parser = Parser(tokens)
-    ast = parser.getExpression()
+    ast = parser.getFinalParserObject()
 
     return ast.syntax, ast.error
     # return tokens, None
