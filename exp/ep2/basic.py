@@ -253,8 +253,6 @@ class Parser:
             #advance to next token
             self.advanceAndAssignCurrentToken()
             #advance till you find number or error
-            print('this is token')
-            print(token)
             parsedNumberNode = self.getNumberNodeAndAdvance()
             #ifError return error
             if parsedNumberNode.error: return parsedNumberNode
