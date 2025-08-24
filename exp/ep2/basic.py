@@ -182,6 +182,14 @@ class BinOpNode:
     def __repr__(self):
         return f'({self.left_node} {self.operator} {self.right_node})'
 
+class UnaryOpNode:
+    def __init__(self, operator, right_node):
+        self.operator = operator
+        self.right_node = right_node
+
+    def __repr__(self):
+        return f'({self.operator} {self.right_node})'
+
 ###################
 #RESULT TO AN OBJECT
 ###################
@@ -221,6 +229,18 @@ class Parser:
             self.current_token = self.tokens[self.tok_index]
         else: self.current_token = None
 
+    def getFinalParserObject(self):
+        expression = self.getExpression()
+         # expression = self.getOperation(self.getTerm, (TT_PLUS, TT_MINUS))
+        #If expression has no error and currtent_token is not endOfFile
+        #then the expression must be in form of continuous numbers
+        #like 1 1, which is not a valid expression
+        if not expression.error and self.current_token.type != TT_EOF:
+            return expression.assignError(
+            InvalidSyntaxError(self.current_token.currentPos, "Expected '+', '-', '*', or '/'")
+            )
+        return expression
+
 #This method advances only if currentToken is a number and returns numberNode form of currenttoken
     def getNumberNodeAndAdvance(self):
         parseResult = ResultObject()
@@ -228,6 +248,19 @@ class Parser:
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advanceAndAssignCurrentToken()
             return parseResult.assignSyntax(NumberNode(token))
+        #this elif is used if you find +or- instead of number
+        elif(token.type == TT_PLUS, TT_MINUS):
+            #advance to next token
+            self.advanceAndAssignCurrentToken()
+            #advance till you find number or error
+            print('this is token')
+            print(token)
+            parsedNumberNode = self.getNumberNodeAndAdvance()
+            #ifError return error
+            if parsedNumberNode.error: return parsedNumberNode
+            #Elese return UniaryOperator
+            return parseResult.assignSyntax(UnaryOpNode(token, parsedNumberNode.syntax))
+        #this elif is used if you find ( instead of number
         elif(token.type == TT_LPAREN):
             #if token is LeftParen advance to the next token
             self.advanceAndAssignCurrentToken()
@@ -267,22 +300,6 @@ class Parser:
             right = right.syntax
             left = BinOpNode(left, operator, right)
         return finalResult.assignSyntax(left)
-        
-    
-    def getFinalParserObject(self):
-        expression = self.getExpression()
-         # expression = self.getOperation(self.getTerm, (TT_PLUS, TT_MINUS))
-        #If expression has no error and currtent_token is not endOfFile
-        #then the expression must be in form of continuous numbers
-        #like 1 1, which is not a valid expression
-        if not expression.error and self.current_token.type != TT_EOF:
-            return expression.assignError(
-            InvalidSyntaxError(self.current_token.currentPos, "Expected '+', '-', '*', or '/'")
-            )
-        return expression
-
-
-        
         
     def getTerm(self):
         finalResult = ResultObject()
