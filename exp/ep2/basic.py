@@ -235,10 +235,10 @@ class Parser:
         #If expression has no error and currtent_token is not endOfFile
         #then the expression must be in form of continuous numbers
         #like 1 1, which is not a valid expression
-        if not expression.error and self.current_token.type != TT_EOF:
-            return expression.assignError(
-            InvalidSyntaxError(self.current_token.currentPos, "Expected '+', '-', '*', or '/'")
-            )
+        # if not expression.error and self.current_token.type != TT_EOF:
+        #     return expression.assignError(
+        #     InvalidSyntaxError(self.current_token.currentPos, "Expected '+', '-', '*', or '/'")
+        #     )
         return expression
 
 #This method advances only if currentToken is a number and returns numberNode form of currenttoken
@@ -249,7 +249,7 @@ class Parser:
             self.advanceAndAssignCurrentToken()
             return parseResult.assignSyntax(NumberNode(token))
         #this elif is used if you find +or- instead of number
-        elif(token.type == TT_PLUS, TT_MINUS):
+        elif(token.type in (TT_PLUS, TT_MINUS)):
             #advance to next token
             self.advanceAndAssignCurrentToken()
             #advance till you find number or error
