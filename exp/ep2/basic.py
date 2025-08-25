@@ -1,3 +1,9 @@
+#######################################
+# IMPORTS
+#######################################
+
+from string_with_arrows import *
+
 ###################
 #Constants
 ###################
@@ -9,21 +15,25 @@ DIGITS = '0123456789'
 ###################
 
 class Error:
-    def __init__(self, currentPos, error_name, details):
+    def __init__(self, currentPos, pos_end, error_name, details):
         self.currentPos = currentPos
+        self.pos_end = pos_end
         self.error_name = error_name
         self.details = details
 
     def as_string(self):
-        return f'{self.error_name}: {self.details}\n File {self.currentPos.fileName}, Line {self.currentPos.rowPos + 1}'
+        error = f'{self.error_name}: {self.details}\n File {self.currentPos.fileName}, Line {self.currentPos.rowPos + 1}'
+        error += '\n\n' + string_with_arrows(self.currentPos.text, self.currentPos, self.pos_end)
+        return error
+
     
 class IllegalCharError(Error):
-    def __init__(self, currentPos, details):
-        super().__init__(currentPos, "IllegalCharError", details)
+    def __init__(self, currentPos, pos_end, details):
+        super().__init__(currentPos, pos_end, "IllegalCharError", details)
 
 class InvalidSyntaxError(Error):
-    def __init__(self, currentPos, details):
-        super().__init__(currentPos, "Invalid System error", details)
+    def __init__(self, currentPos, pos_end, details):
+        super().__init__(currentPos, pos_end, "Invalid System error", details)
 
 ###################
 #Position
@@ -50,7 +60,7 @@ class Position:
     #Usually the increment will be on index and col in a line
     #but if current_char is next line, col will be 0 
     #and row pos should be increased by one
-    def incrementColAndIndex(self, current_char):
+    def incrementColAndIndex(self, current_char=None):
         self.indexPos += 1
         self.colPos += 1
 
@@ -78,10 +88,15 @@ TT_EOF    = 'EOF'
 #Why position is used in token class
 
 class Token:
-    def __init__(self, type, currentPos=None, value=None):
+    def __init__(self, type, currentPos=None, value=None, pos_end = None):
         self.type = type
         self.value = value
         self.currentPos = currentPos
+        #basically pos_end is next index to pos_start unless specified
+        if currentPos:
+            self.pos_end = currentPos.incrementColAndIndex()
+        if pos_end:
+            self.pos_end = pos_end
 
     def __repr__(self):
         if self.value: return f'{self.type}: {self.value}'
@@ -110,6 +125,8 @@ class Lexer:
         self.current_char = self.text[self.pos.indexPos] if self.pos.indexPos < len(self.text) else None
 
     #defines they data type of each letter
+    #only Pos_start is assigned, pos_end will be thenextIndex
+    #according to logic in Token class
     def make_tokens(self):
         tokens = []
         while self.current_char != None:
@@ -140,7 +157,7 @@ class Lexer:
                 #get the current position and characther before advancing to next postion
                 currentChar = self.current_char
                 self.advancePosAndassignChar()
-                return [], IllegalCharError(self.pos, currentChar)
+                return [], IllegalCharError(self.pos, self.pos, currentChar)
             
         tokens.append(Token(TT_EOF, self.pos))
         return tokens, None
@@ -272,10 +289,10 @@ class Parser:
                 return expr
             else: 
                 return parseResult.assignError(
-                    InvalidSyntaxError(self.current_token.currentPos, "Expected )")
+                    InvalidSyntaxError(self.current_token.currentPos, self.current_token.pos_end, "Expected )")
                     )
         return parseResult.assignError(
-            InvalidSyntaxError(self.current_token.currentPos, "Expected int or Float number")
+            InvalidSyntaxError(self.current_token.currentPos, self.current_token.pos_end, "Expected int or Float number")
         )
     
     def getExpression(self):
