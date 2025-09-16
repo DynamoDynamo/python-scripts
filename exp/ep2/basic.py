@@ -101,6 +101,10 @@ class Token:
     def __repr__(self):
         if self.value: return f'{self.type}: {self.value}'
         return f'{self.type}'
+    
+    def token_string(self):
+        if self.value: return f'{self.type}: {self.value}: {self.currentPos}: {self.pos_end}'
+        return f'{self.type}: {self.currentPos}: {self.pos_end}'
 
 ###################
 #Lexer
@@ -121,6 +125,7 @@ class Lexer:
         self.advancePosAndassignChar()
 
     def advancePosAndassignChar(self):
+        print(self.pos.indexPos)
         self.pos.incrementColAndIndex(self.current_char)
         self.current_char = self.text[self.pos.indexPos] if self.pos.indexPos < len(self.text) else None
 
@@ -176,7 +181,8 @@ class Lexer:
         if dot_count == 1:
             return Token(TT_FLOAT, self.pos, value = float(number_str))
         else:
-            return Token(TT_INT, self.pos, value = int(number_str))
+            token = Token(TT_INT, self.pos, value = int(number_str))
+            return token
 
 ###################
 #NODES
@@ -325,10 +331,16 @@ class Parser:
         if left.error: return left
         #at this point self.current token is MUL 
         left = left.syntax
+        print('left')
+        print(left)
         while self.current_token.type in (TT_MUL, TT_DIV):
             operator = self.current_token.type
             # advance to number
+            print('self.current_token')
+            print(self.current_token)
             self.advanceAndAssignCurrentToken()
+            print('after')
+            print(self.current_token)
             # here right is instance of result object
             # get current number token and advance to next token which is operator
             right = self.getNumberNodeAndAdvance()
@@ -371,11 +383,11 @@ def run(fileName, text):
     if error: return None, error
 
     # generate abstract syntax tree (ast), if there are tokens
-    parser = Parser(tokens)
-    ast = parser.getFinalParserObject()
+    # parser = Parser(tokens)
+    # ast = parser.getFinalParserObject()
 
-    return ast.syntax, ast.error
-    # return tokens, None
+    # return ast.syntax, ast.error
+    return tokens, None
 
 
 
