@@ -7,7 +7,7 @@ while True:
     inputVar = input('basic>')
     if(inputVar.lower() == 'exit'):
         sys.exit("Bye Bye!")
-    result, error = basic.run(inputVar)
+    result, error = basic.run('<stdin>', inputVar)
 
     if error:
         print(error.as_string())
