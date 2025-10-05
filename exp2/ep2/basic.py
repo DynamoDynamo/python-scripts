@@ -30,7 +30,7 @@ class IllegalCharError(Error):
 
 class InvalidSyntaxError(Error):
     def __init__(self, pos_start, pos_end, details):
-        super().__init__(pos_start, pos_end, 'Invalid Sytax', details)
+        super().__init__(pos_start, pos_end, 'Invalid Syntax', details)
 
 #######################################
 # POSITION
@@ -77,7 +77,8 @@ class Token:
         self.value = value
         if pos_start:
             self.pos_start = pos_start.copy()
-            self.pos_end = pos_start.advance()
+            self.pos_end = pos_start.copy()
+            self.pos_end.advance()
 
         if pos_end:
             self.pos_end = pos_end
@@ -244,7 +245,7 @@ class Parser:
             expr = res.register(self.expression())
             if res.error:
                 return res
-            if self.currentToken == TT_RPAREN:
+            if self.currentToken.type == TT_RPAREN:
                 res.register(self.advance())
                 return res.success(expr)
             else: return res.failure(InvalidSyntaxError(token.pos_start, token.pos_end, "Expected ')'"))
