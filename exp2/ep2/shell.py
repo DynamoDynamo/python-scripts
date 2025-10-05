@@ -5,6 +5,8 @@ while True:
     text = input('basic > ')
     if text.lower() == 'exit':
         sys.exit()
-    result = basic.run('<stdin>', text)
-
-    print(result)
+    node, error = basic.run('<stdin>', text)
+    if error:
+        print(error.as_string())
+    else:
+        print(node)
