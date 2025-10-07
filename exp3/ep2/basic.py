@@ -3,6 +3,7 @@
 #Task3: Give position of that error
 #Task4: Organize tokens according to Sytax
     #SubTask: factor number, term */, expression +- < +ve scenario
+#Task5: Add IllegalChar error, this requires Tokens to have positions
 
 from string_with_arrows import *
 ########################
@@ -62,9 +63,11 @@ TT_RPAREN = 'RPAREN'
 DIGITS = '0123456789'
 
 class Token:
-    def __init__(self, tokenType, tokenValue = None):
+    def __init__(self, posStart, posEnd, tokenType, tokenValue = None):
         self.tokenType = tokenType
         self.tokenValue = tokenValue
+        self.posStart = posStart
+        self.posEnd = posEnd
 
     def __repr__(self):
         if self.tokenValue:
