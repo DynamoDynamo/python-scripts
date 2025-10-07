@@ -4,6 +4,8 @@
 #Task4: Organize tokens according to Sytax
     #SubTask: factor number, term */, expression +- < +ve scenario
 #Task5: Add IllegalChar error, this requires Tokens to have positions
+#Task6: you cannot directly return error from task 5, Now you need parseResult
+        #to wrap up both node and error in object and simplsend the obj
 
 from string_with_arrows import *
 ########################
@@ -18,7 +20,7 @@ class Position:
         self.ln = rowPos
         self.col = colPos
 
-    def advance(self, currentChar):
+    def advance(self, currentChar = None):
         self.idx += 1
         self.col += 1
         if currentChar == '\n':
@@ -63,11 +65,15 @@ TT_RPAREN = 'RPAREN'
 DIGITS = '0123456789'
 
 class Token:
-    def __init__(self, posStart, posEnd, tokenType, tokenValue = None):
+    def __init__(self, tokenType, posStart, posEnd = None, tokenValue = None):
         self.tokenType = tokenType
         self.tokenValue = tokenValue
         self.posStart = posStart
-        self.posEnd = posEnd
+        if posEnd:
+            self.posEnd = posEnd
+        else:
+            self.posEnd = self.posStart.copy()
+            self.posEnd.advance()
 
     def __repr__(self):
         if self.tokenValue:
@@ -96,22 +102,22 @@ class Lexer:
             if self.currentChar in (' \t'):
                 self.advance()
             elif self.currentChar == '+':
-                tokens.append(Token(TT_PLUS))
+                tokens.append(Token(TT_PLUS, posStart = self.position))
                 self.advance()
             elif self.currentChar == '-':
-                tokens.append(Token(TT_MINUS))
+                tokens.append(Token(TT_MINUS, posStart = self.position))
                 self.advance()
             elif self.currentChar == '*':
-                tokens.append(Token(TT_MUL))
+                tokens.append(Token(TT_MUL, posStart = self.position))
                 self.advance()
             elif self.currentChar == '/':
-                tokens.append(Token(TT_DIV))
+                tokens.append(Token(TT_DIV, posStart = self.position))
                 self.advance()
             elif self.currentChar == '(':
-                tokens.append(Token(TT_LPAREN))
+                tokens.append(Token(TT_LPAREN, posStart = self.position))
                 self.advance()
             elif self.currentChar == ')':
-                tokens.append(Token(TT_RPAREN))
+                tokens.append(Token(TT_RPAREN, posStart = self.position))
                 self.advance()
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberTokens())
@@ -120,7 +126,7 @@ class Lexer:
                 currentChar = self.currentChar
                 self.advance()
                 return None, IllegalCharError(currentChar, currentPos, self.position)
-        tokens.append(Token(TT_EOF))
+        tokens.append(Token(TT_EOF, posStart = self.position))
         return tokens, None
         
     
@@ -138,9 +144,9 @@ class Lexer:
             self.advance()
         
         if(dotCount == 1):
-            return Token(TT_FLOAT, float(numStr))
+            return Token(TT_FLOAT, posStart = self.position, tokenValue = float(numStr))
         else:
-            return Token(TT_INT, int(numStr))
+            return Token(TT_INT, posStart = self.position, tokenValue = int(numStr))
         
 ########################
 # Nodes
@@ -161,6 +167,29 @@ class BinaryNode:
 
     def __repr__(self):
         return f'({self.leftToken}, {self.opToken}, {self.rightToken})'
+########################
+# parseResult - to wrap up nodes and error in onebject as output
+########################
+
+class ParseResult:
+    def __init__(self):
+        self.node = None
+        self.error = None
+
+    def register(self, result):
+        if isinstance(result, ParseResult):
+            if result.error:
+                self.error = result.error
+            return result.node
+        return result
+    
+    def success(self, node):
+        self.node = node
+        return self 
+    
+    def failure(self, error):
+        self.error = error
+        return self
         
 ########################
 # Parser - to organize tokens according to sytax
@@ -177,34 +206,65 @@ class Parser:
     def advance(self):
         self.index += 1
         self.currentToken = self.tokens[self.index] if self.index < len(self.tokens) else None
+        return self.currentToken
 
     def factor(self):
+        parseResultObj = ParseResult()
         token = self.currentToken
         #factor identiefies int or float 
         if token.tokenType in (TT_INT, TT_FLOAT):
             self.advance()
-            return NumberNode(token)
+            return parseResultObj.success(NumberNode(token))
+        else: 
+            return parseResultObj.failure(IllegalCharError("expected int or float number", token.posStart, token.posEnd))
         
     def term(self):
-        left = self.factor()
+        termParseResultObj = ParseResult()
+        # self.factor() returns ParseResultObj
+        # termParseResultObj is a seperateInstance of ParseResultObj
+        # if self.factor has error, error gets assigned to termParser
+        # if self.factor has node, simply result.node which is of type Token is returned
+        left = termParseResultObj.register(self.factor())
+        if termParseResultObj.error:
+            return termParseResultObj
+        
         while self.currentToken.tokenType in (TT_MUL, TT_DIV):
             operatorToken = self.currentToken
             self.advance()
-            right = self.factor()
+            #right here is token in +ve scenario
+            right = termParseResultObj.register(self.factor())
+            if termParseResultObj.error:
+                return termParseResultObj
+            #left here is BinaryNode
             left = BinaryNode(operatorToken, left, right)
-        return left
+        return termParseResultObj.success(left)
     
     def expression(self):
-        left = self.term()
+        expressionParseResultObj = ParseResult()
+        #self.term() here is always an instance of ParseResultObject()
+        #expressionParseResultObj is seperate instance of ParseResultObject()
+        #self.term() may return parseResultObj with error or with node
+        # if error, register will assign error to expressionParseResultObj
+        # if node, it simply returns node, which is of type BinaryNode
+        # so left here is always of type BinaryNode, if no error
+        # so left may be of type BinaryNode(when no error) or 
+        # termParseResultObj if error, that's why we r dealing with
+        # expressionParseResultObj when checking the error
+        left = expressionParseResultObj.register(self.term())
+        if expressionParseResultObj.error:
+            return expressionParseResultObj
         while self.currentToken.tokenType in (TT_PLUS, TT_MINUS):
             operatorToken = self.currentToken
             self.advance()
-            right = self.term()
+            right = expressionParseResultObj.register(self.term())
+            if expressionParseResultObj.error:
+                return expressionParseResultObj
             left = BinaryNode(operatorToken, left, right)
-        return left
+        return expressionParseResultObj.success(left)
     
     def parseTokens(self):
-        return self.expression()
+        finalParseResultObj = self.expression()
+        return finalParseResultObj
         
 ########################
 # Run
@@ -217,7 +277,7 @@ def run(userInput, fileName):
     if tokens:
         parser = Parser(tokens)
         result = parser.parseTokens()
-        return result, None
+        return result.node, result.error
     else:
         return None, error
             
