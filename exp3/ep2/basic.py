@@ -41,10 +41,8 @@ class Error:
         self.errorDetails = errorDetails
         self.errorName = errorName
         self.posStart = posStart
-        self.posEnd = posEnd
-        print('in error')
-        print(self.posStart)
-        print(self.posEnd)
+        self.posEnd = posEnd 
+
     def __repr__(self):
         errorMsg = f'{self.errorName} {self.errorDetails}\n'
         errorMsg += f'File {self.posStart.fn}, line {self.posStart.ln + 1}'
@@ -54,6 +52,10 @@ class Error:
 class IllegalCharError(Error):
     def __init__(self, errorDetails, posStart, posEnd):
         super().__init__("Illegal character", errorDetails, posStart, posEnd)
+
+class InvalidSyntaxError(Error):
+    def __init__(self, errorDetails, posStart, posEnd):
+        super().__init__("Illegal Syntax", errorDetails, posStart, posEnd)
     
 
 ########################
@@ -175,6 +177,14 @@ class BinaryNode:
 
     def __repr__(self):
         return f'({self.leftToken}, {self.opToken}, {self.rightToken})'
+    
+class UnaryOpNode:
+    def __init__(self, opToken, node):
+        self.opToken = opToken
+        self.node = node
+
+    def __repr__(self):
+        return f'({self.opToken}:{self.node})'
 ########################
 # parseResult - to wrap up nodes and error in onebject as output
 ########################
@@ -206,7 +216,6 @@ class ParseResult:
 
 class Parser:
     def __init__(self, tokens):
-        print(tokens)
         self.tokens = tokens
         self.index = -1
         self.currentToken = None
@@ -221,14 +230,24 @@ class Parser:
         parseResultObj = ParseResult()
         token = self.currentToken
         #factor identiefies int or float 
-        print('in factor method')
-        print(token)
         if token.tokenType in (TT_INT, TT_FLOAT):
             parseResultObj.register(self.advance())
             return parseResultObj.success(NumberNode(token))
-        print(token.posStart)
-        print(token.posEnd)
-        print(token.tokenType)
+        elif token.tokenType in (TT_PLUS, TT_MINUS):
+            self.advance()
+            factor = parseResultObj.register(self.factor())
+            if parseResultObj.error:
+                return factor
+            return parseResultObj.success(UnaryOpNode(token, factor))
+        elif token.tokenType == TT_LPAREN:
+            self.advance()
+            expr = parseResultObj.register(self.expression())
+            if parseResultObj.error:
+                return parseResultObj
+            if self.currentToken.tokenType == TT_RPAREN:
+                self.advance()
+                return parseResultObj.success(expr)
+            else: return parseResultObj.failure(InvalidSyntaxError("Expected ')'", token.posStart, token.posEnd))
         return parseResultObj.failure(IllegalCharError("expected int or float number", token.posStart, token.posEnd))
         
     def term(self):
