@@ -20,6 +20,9 @@ class Position:
         self.ln = rowPos
         self.col = colPos
 
+    def __repr__(self):
+        return f'{self.idx}:{self.ln}:{self.col}'
+
     def advance(self, currentChar = None):
         self.idx += 1
         self.col += 1
@@ -39,6 +42,9 @@ class Error:
         self.errorName = errorName
         self.posStart = posStart
         self.posEnd = posEnd
+        print('in error')
+        print(self.posStart)
+        print(self.posEnd)
     def __repr__(self):
         errorMsg = f'{self.errorName} {self.errorDetails}\n'
         errorMsg += f'File {self.posStart.fn}, line {self.posStart.ln + 1}'
@@ -68,12 +74,13 @@ class Token:
     def __init__(self, tokenType, posStart, posEnd = None, tokenValue = None):
         self.tokenType = tokenType
         self.tokenValue = tokenValue
-        self.posStart = posStart
+        if posStart:
+            self.posStart = posStart.copy()
+            self.posEnd = posStart.copy()
+            self.posEnd.advance()
+
         if posEnd:
             self.posEnd = posEnd
-        else:
-            self.posEnd = self.posStart.copy()
-            self.posEnd.advance()
 
     def __repr__(self):
         if self.tokenValue:
@@ -133,6 +140,7 @@ class Lexer:
     def makeNumberTokens(self):
         numStr = ''
         dotCount = 0
+        pos_start = self.position.copy()
 
         while self.currentChar != None and self.currentChar in DIGITS + '.':
             if self.currentChar == '.':
@@ -144,9 +152,9 @@ class Lexer:
             self.advance()
         
         if(dotCount == 1):
-            return Token(TT_FLOAT, posStart = self.position, tokenValue = float(numStr))
+            return Token(TT_FLOAT, posStart = pos_start, tokenValue = float(numStr), posEnd=self.position)
         else:
-            return Token(TT_INT, posStart = self.position, tokenValue = int(numStr))
+            return Token(TT_INT, posStart = pos_start, tokenValue = int(numStr), posEnd=self.position)
         
 ########################
 # Nodes
@@ -198,6 +206,7 @@ class ParseResult:
 
 class Parser:
     def __init__(self, tokens):
+        print(tokens)
         self.tokens = tokens
         self.index = -1
         self.currentToken = None
@@ -212,11 +221,15 @@ class Parser:
         parseResultObj = ParseResult()
         token = self.currentToken
         #factor identiefies int or float 
+        print('in factor method')
+        print(token)
         if token.tokenType in (TT_INT, TT_FLOAT):
-            self.advance()
+            parseResultObj.register(self.advance())
             return parseResultObj.success(NumberNode(token))
-        else: 
-            return parseResultObj.failure(IllegalCharError("expected int or float number", token.posStart, token.posEnd))
+        print(token.posStart)
+        print(token.posEnd)
+        print(token.tokenType)
+        return parseResultObj.failure(IllegalCharError("expected int or float number", token.posStart, token.posEnd))
         
     def term(self):
         termParseResultObj = ParseResult()
@@ -230,7 +243,7 @@ class Parser:
         
         while self.currentToken.tokenType in (TT_MUL, TT_DIV):
             operatorToken = self.currentToken
-            self.advance()
+            termParseResultObj.register(self.advance())
             #right here is token in +ve scenario
             right = termParseResultObj.register(self.factor())
             if termParseResultObj.error:
@@ -255,7 +268,7 @@ class Parser:
             return expressionParseResultObj
         while self.currentToken.tokenType in (TT_PLUS, TT_MINUS):
             operatorToken = self.currentToken
-            self.advance()
+            expressionParseResultObj.register(self.advance())
             right = expressionParseResultObj.register(self.term())
             if expressionParseResultObj.error:
                 return expressionParseResultObj

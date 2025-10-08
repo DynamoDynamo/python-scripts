@@ -13,10 +13,14 @@ DIGITS = '0123456789'
 
 class Error:
     def __init__(self, pos_start, pos_end, error_name, details):
+        
         self.pos_start = pos_start
         self.pos_end = pos_end
         self.error_name = error_name
         self.details = details
+        print('in error')
+        print(self.pos_start)
+        print(self.pos_end)
     
     def as_string(self):
         result  = f'{self.error_name}: {self.details}\n'
@@ -43,6 +47,9 @@ class Position:
         self.col = col
         self.fn = fn
         self.ftxt = ftxt
+
+    def __repr__(self):
+        return f'{self.idx}:{self.ln}:{self.col}'
 
     def advance(self, current_char=None):
         self.idx += 1
@@ -249,6 +256,10 @@ class Parser:
                 res.register(self.advance())
                 return res.success(expr)
             else: return res.failure(InvalidSyntaxError(token.pos_start, token.pos_end, "Expected ')'"))
+        print('in factor method')
+        print(token.pos_start)
+        print(token.pos_end)
+        print(token.type)
         return res.failure(InvalidSyntaxError(token.pos_start, token.pos_end, "Expected int or float"))
 
     def term(self):
