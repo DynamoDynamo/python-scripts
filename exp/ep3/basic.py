@@ -56,7 +56,7 @@ class Lexer:
             print('in while loop')
             print(self.currentLetter)
             print(self.pos)
-            if self.currentLetter in ' \t':
+            if self.currentLetter in (' \t'):
                 self.advance()
             elif self.currentLetter == '+':
                 tokens.append(Tokens(self.pos, TT_ADD))
