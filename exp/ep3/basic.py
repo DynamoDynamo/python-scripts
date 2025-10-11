@@ -75,11 +75,8 @@ class Lexer:
             else:
                 #Return error
                 currentPos = self.pos.copy()
-                print(currentPos)
                 currentChar = self.currentLetter
-                print(currentChar)
                 self.advance()
-                print(self.pos)
                 return None, IllegalCharError("'" + currentChar + "'", self.userInput, currentPos, self.pos )
         tokens.append(TT_EOF)
         return tokens, None
