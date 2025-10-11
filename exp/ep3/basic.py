@@ -1,8 +1,9 @@
 from strings_with_arrow import *
 
-# 1. create tokens out of userInput
+# 1. create tokens out of userInput - Lexer
 # 2. create error
-# 3. show the position of error
+# 3. show the position of error, add position only to Error
+# 4. create syntax out of tokens - parser for +ve scenario
 
 ########################
 #TOKENS
@@ -71,7 +72,7 @@ class Lexer:
                 self.advance()
             elif self.currentLetter in DIGITS:
                 #make number tokens
-                tokens.append(Tokens(self.makeNumberTokens()))
+                tokens.append(self.makeNumberTokens())
             else:
                 #Return error
                 currentPos = self.pos.copy()
@@ -93,9 +94,9 @@ class Lexer:
             numStr += self.currentLetter
             self.advance()
         if dotCount == 1:
-            return Tokens( TT_FLOAT, float(numStr))
+            return Tokens( tokenType=TT_FLOAT, tokenValue=float(numStr))
         else:
-            return Tokens( TT_INT, int(numStr))
+            return Tokens( tokenType=TT_INT, tokenValue=int(numStr))
 
 ########################
 #ERROR
@@ -142,6 +143,67 @@ class Position:
     
     def copy(self):
         return Position(self.idx, self.ln, self.col)
+    
+########################
+#Parser
+########################
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.tokenIndex = -1
+        self.currentToken = None
+        self.advance()
+
+    def advance(self):
+        self.tokenIndex += 1
+        self.currentToken = self.tokens[self.tokenIndex] if self.tokenIndex < len(self.tokens) else None
+    
+    def findFactor(self):
+        token = self.currentToken
+        if token.tokenType in (TT_INT, TT_FLOAT):
+            self.advance()
+            return NumberNode(token)
+
+
+    def findTerm(self):
+        left = self.findFactor()
+        while self.currentToken.tokenType in (TT_MUL, TT_DIV):
+            operator = self.currentToken
+            self.advance()
+            print('finding right')
+            right = self.findFactor()
+            left = BinaryNode(left, right, operator)
+        return left
+
+    def findExpression(self):
+        left = self.findTerm()
+        while self.currentToken.tokenType in (TT_ADD, TT_MINUS):
+            operator = self.currentToken
+            self.advance()
+            print('finding right')
+            right = self.findTerm()
+            left = BinaryNode(left, right, operator)
+        return left, None
+
+########################
+#Node
+########################
+
+class NumberNode:
+    def __init__(self, token):
+        self.token = token
+
+    def __repr__(self):
+        return f'{self.token}'
+    
+class BinaryNode:
+    def __init__(self, left, right, operatorToken):
+        self.leftNode = left
+        self.rightNode = right
+        self.operatorToken = operatorToken
+
+    def __repr__(self):
+        return f'({self.leftNode},{self.operatorToken},{self.leftNode})'
 
 ########################
 #Run
@@ -149,6 +211,8 @@ class Position:
 
 def run(userInput):
     lexer = Lexer(userInput)
-    return lexer.makeTokens()
+    tokens, error = lexer.makeTokens()
+    parser = Parser(tokens)
+    return parser.findExpression()
 
     
