@@ -20,13 +20,9 @@ TT_EOF = 'EOF'
 DIGITS = '0123456789'
 
 class Tokens:
-    def __init__(self, posStart, tokenType, tokenValue=None, posEnd=None):
+    def __init__(self, tokenType, tokenValue=None):
         self.tokenType = tokenType
         self.tokenValue = tokenValue
-        self.posStart = posStart
-        self.posEnd = posStart.advance()
-        if posEnd:
-            self.posEnd = posEnd
 
     def __repr__(self):
         if self.tokenValue:
@@ -41,8 +37,8 @@ class Tokens:
 class Lexer:
     def __init__(self, userInput):
         self.userInput = userInput
-        self.pos = Position(-1, -1, 0)
         self.currentLetter = None
+        self.pos = Position(-1, 0, -1)
         self.advance()
         
     def advance(self):
@@ -53,53 +49,45 @@ class Lexer:
         tokens = []
 
         while self.currentLetter != None:
-            print('in while loop')
-            print(self.currentLetter)
-            print(self.pos)
             if self.currentLetter in (' \t'):
                 self.advance()
             elif self.currentLetter == '+':
-                tokens.append(Tokens(self.pos, TT_ADD))
+                tokens.append(Tokens(TT_ADD))
                 self.advance()
             elif self.currentLetter == '-':
-                tokens.append(Tokens(self.pos, TT_MINUS))
+                tokens.append(Tokens(TT_MINUS))
                 self.advance()
             elif self.currentLetter == '*':
-                tokens.append(Tokens(self.pos, TT_MUL))
+                tokens.append(Tokens(TT_MUL))
                 self.advance()
             elif self.currentLetter == '/':
-                tokens.append(Tokens(self.pos, TT_DIV))
+                tokens.append(Tokens( TT_DIV))
                 self.advance()
             elif self.currentLetter == '(':
-                tokens.append(Tokens(self.pos, TT_LPAREN))
+                tokens.append(Tokens(TT_LPAREN))
                 self.advance()
             elif self.currentLetter == ')':
-                tokens.append(Tokens(self.pos, TT_RPAREN))
+                tokens.append(Tokens( TT_RPAREN))
                 self.advance()
             elif self.currentLetter in DIGITS:
                 #make number tokens
-                tokens.append(Tokens(self.pos, self.makeNumberTokens()))
-                print('after tokens.append for number tokens')
-                print(self.currentLetter)
-                print(self.pos)
+                tokens.append(Tokens(self.makeNumberTokens()))
             else:
                 #Return error
-                print('in error loop')
-                print(self.pos.copy())
-                currentPos = self.pos
-                nextPos = self.pos.advance()
-                return None, IllegalCharError("'" + self.currentLetter + "'", self.userInput, currentPos, nextPos)
-        tokens.append(self.pos, TT_EOF)
+                currentPos = self.pos.copy()
+                print(currentPos)
+                currentChar = self.currentLetter
+                print(currentChar)
+                self.advance()
+                print(self.pos)
+                return None, IllegalCharError("'" + currentChar + "'", self.userInput, currentPos, self.pos )
+        tokens.append(TT_EOF)
         return tokens, None
     
     def makeNumberTokens(self):
         numStr = ''
         dotCount = 0
-        posStart = self.pos
         while self.currentLetter != None and self.currentLetter in DIGITS + '.':
-            print('in makeNumber Tokens')
-            print(self.currentLetter)
-            print(self.pos)
             if self.currentLetter == '.':
                 if dotCount == 1:
                     break
@@ -107,13 +95,10 @@ class Lexer:
                     dotCount += 1
             numStr += self.currentLetter
             self.advance()
-        print('after while loop in makeNumberToken')
-        print(self.currentLetter)
-        print(self.pos)
         if dotCount == 1:
-            return Tokens(posStart, TT_FLOAT, float(numStr), self.pos)
+            return Tokens( TT_FLOAT, float(numStr))
         else:
-            return Tokens(posStart, TT_INT, int(numStr), self.pos)
+            return Tokens( TT_INT, int(numStr))
 
 ########################
 #ERROR
@@ -122,9 +107,9 @@ class Error:
     def __init__(self, errorMsg, errorType, userInput, posStart, posEnd):
         self.errorMsg = errorMsg
         self.errorType = errorType
+        self.userInput = userInput
         self.posStart = posStart
         self.posEnd = posEnd
-        self.userInput = userInput
     
     def __repr__(self):
         error = f'{self.errorMsg} {self.errorType}\n'
@@ -133,7 +118,7 @@ class Error:
     
 class IllegalCharError(Error):
     def __init__(self, errorMsg, userInput, posStart, posEnd):
-        super().__init__(errorMsg, 'Illegal Character', userInput, posStart, posEnd)
+        super().__init__(errorMsg, 'Illegal Character', userInput, posStart, posEnd )
 
 ########################
 #POSITION 
@@ -141,26 +126,25 @@ class IllegalCharError(Error):
 ########################
 
 class Position:
-    def __init__(self, index, colPos, rowPos):
+    def __init__(self, index, rowPos, colPos):
         self.idx = index
         self.col = colPos
         self.ln = rowPos
 
     def __repr__(self):
-        return f'{self.idx}:{self.col}:{self.ln}'
+        return f'{self.idx}:{self.ln}:{self.col}'
     
     def advance(self, currentChar = None):
         self.idx += 1
         
-        if currentChar == '/n':
+        if currentChar == '\n':
             self.col = 0
             self.ln += 1
         else:
             self.col += 1
-        return self
     
     def copy(self):
-        return Position(self.idx, self.col, self.ln)
+        return Position(self.idx, self.ln, self.col)
 
 ########################
 #Run
