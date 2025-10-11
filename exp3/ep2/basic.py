@@ -132,8 +132,11 @@ class Lexer:
                 tokens.append(self.makeNumberTokens())
             else:
                 currentPos = self.position.copy()
+                print(currentPos)
                 currentChar = self.currentChar
+                print(currentChar)
                 self.advance()
+                print(self.position)
                 return None, IllegalCharError(currentChar, currentPos, self.position)
         tokens.append(Token(TT_EOF, posStart = self.position))
         return tokens, None
