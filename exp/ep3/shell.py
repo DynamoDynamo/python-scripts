@@ -2,13 +2,11 @@ import sys
 import basic
 
 while True:
-    userInput = input('<basic> ')
+    userInput = input('input>')
     if userInput.lower() == 'exit':
-        sys.exit('bye! see you soon')
-    result,error = basic.run(userInput)
+        sys.exit("see you soon!")
+    result, error = basic.run(userInput, '<include>')
+    if result:
+        print(result)
     if error:
         print(error)
-    else:
-        print(result)
-    
-
