@@ -1,12 +1,12 @@
-import sys
-import basic
+import sys;
+import basic;
 
 while True:
     userInput = input('input>')
     if userInput.lower() == 'exit':
-        sys.exit("see you soon!")
-    result, error = basic.run(userInput, '<include>')
+        sys.exit()
+    result, error = basic.run(userInput, '<sanskrit.in>')
     if result:
         print(result)
-    if error:
+    else: 
         print(error)
