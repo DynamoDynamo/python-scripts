@@ -44,12 +44,18 @@ class Token:
     def __init__(self,pos_start, tokenType, tokenValue = None,  pos_end = None):
         self.type = tokenType
         self.value = tokenValue
-        self.pos_start = pos_start
-        if pos_end != None:
-            self.pos_end = pos_end
-        else:
+        # self.pos_start = pos_start.copy()
+        # if pos_end != None:
+        #     self.pos_end = pos_end
+        # else:
+        #     self.pos_end = pos_start.copy()
+        #     self.pos_end.advance()
+        if pos_start:
+            self.pos_start = pos_start.copy()
             self.pos_end = pos_start.copy()
             self.pos_end.advance()
+        if pos_end:
+            self.pos_end = pos_end
 
     def __repr__(self):
         if self.value != None:
@@ -133,6 +139,7 @@ class Lexer:
     def makeNumberTokens(self):
         numStr = ''
         dotCount = 0
+        pos_start = self.tokenPos.copy()
         while self.currentChar != None and self.currentChar in DIGITS + DOT:
             if self.currentChar == DOT:
                 if dotCount == 1:
@@ -142,9 +149,9 @@ class Lexer:
             numStr += self.currentChar
             self.advance()
         if dotCount == 1:
-            return Token(self.tokenPos, TT_FLOAT, float(numStr))
+            return Token(pos_start, TT_FLOAT, float(numStr), self.tokenPos)
         else:
-            return Token(self.tokenPos, TT_INT, int(numStr))
+            return Token(pos_start, TT_INT, int(numStr), self.tokenPos)
         
 ################
 #NODES
@@ -205,6 +212,9 @@ class Parser:
                 self.advanceToken()
                 return parseResult.success(expression)
             else:
+                print(self.currentToken)
+                print(self.currentToken.pos_start.col)
+                print(self.currentToken.pos_end.col)
                 return parseResult.failure(InvalidSytaxError(self.currentToken.pos_start, self.currentToken.pos_end, "Expected ')'"))
         return parseResult.failure(InvalidSytaxError(token.pos_start, token.pos_end, "Expected int or float"))
         
@@ -274,8 +284,10 @@ class ParseResult:
 def run(userInput, fileName):
     lexer = Lexer(fileName, userInput)
     tokens, error = lexer.makeTokens()
+    for token in tokens:
+        print(f"{token}:{token.pos_start.col}:{token.pos_end.col}\n")
+        if error: return None, error
     if error: return None, error
-    print(tokens)
     parser = Parser(tokens)
     ast = parser.parse()
     return ast.node, ast.error

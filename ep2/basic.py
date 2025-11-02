@@ -262,6 +262,9 @@ class Parser:
 				res.register(self.advance())
 				return res.success(expr)
 			else:
+				print(self.current_tok)
+				print(self.current_tok.pos_start.col)
+				print(self.current_tok.pos_end.col)
 				return res.failure(InvalidSyntaxError(
 					self.current_tok.pos_start, self.current_tok.pos_end,
 					"Expected ')'"
@@ -302,6 +305,8 @@ def run(fn, text):
 		# Generate tokens
 		lexer = Lexer(fn, text)
 		tokens, error = lexer.make_tokens()
+		for token in tokens:
+			print(f"{token}:{token.pos_start.col}:{token.pos_end.col}\n")
 		if error: return None, error
 		
 		# Generate AST
