@@ -189,43 +189,60 @@ class Parser:
         self.currentToken = self.tokens[self.tokenIndex] if self.tokenIndex < len(self.tokens) else None
 
     def factor(self):
+        parseResult = ParseResult()
         token = self.currentToken
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advanceToken()
-            return NumberNode(token)
+            return parseResult.success(NumberNode(token))
         elif(token.type in (TT_MINUS, TT_PLUS)):
             self.advanceToken()
-            factor = self.factor()
-            return UnaryNode(token, factor)
+            factor = parseResult.register(self.factor())
+            return parseResult.success(UnaryNode(token, factor))
         elif(token.type in (TT_LPAREN, TT_RPAREN)):
             self.advanceToken()
-            expression = self.expression()
+            expression = parseResult.register(self.expression())
             if(self.currentToken.type == TT_RPAREN):
                 self.advanceToken()
-                return expression
+                return parseResult.success(expression)
+            else:
+                return parseResult.failure(InvalidSytaxError(self.currentToken.pos_start, self.currentToken.pos_end, "Expected ')'"))
+        return parseResult.failure(InvalidSytaxError(token.pos_start, token.pos_end, "Expected int or float"))
         
     def term(self):
-        left = self.factor()
-        opToken = self.currentToken
-        while(opToken.type in (TT_MUL, TT_DIV)):
-            self.advanceToken()
-            right = self.factor()
-            left = BinaryNode(left, right, opToken)
+        parseResult = ParseResult()
+        left = parseResult.register(self.factor())
+        if parseResult.error: 
+            return parseResult
+        while(self.currentToken.type in (TT_MUL, TT_DIV)):
             opToken = self.currentToken
-        return left
+            self.advanceToken()
+            right = parseResult.register(self.factor())
+            if parseResult.error:
+                return parseResult
+            left = BinaryNode(left, right, opToken)
+        return parseResult.success(left)
 
     def expression(self):
-        left = self.term()
-        opToken = self.currentToken
-        while(opToken.type in (TT_PLUS, TT_MINUS)):
-            self.advanceToken()
-            right = self.term()
-            left = BinaryNode(left, right, opToken)
+        parseResult = ParseResult()
+        left = parseResult.register(self.term())
+        if parseResult.error:
+            return parseResult
+        while(self.currentToken.type in (TT_PLUS, TT_MINUS)):
             opToken = self.currentToken
-        return left
+            self.advanceToken()
+            right = parseResult.register(self.term())
+            if parseResult.error:
+                return parseResult
+            left = BinaryNode(left, right, opToken)
+        return parseResult.success(left)
 
     def parse(self):
-        return self.expression()
+        result =  self.expression()
+        if not result.error and self.currentToken.type != TT_EOF:
+            return result.failure(
+                InvalidSytaxError(self.currentToken.pos_start, self.currentToken.pos_end, "Expected '+', '-', '*', '/'")
+            )
+        return result
 
 ################
 #ParseResult - return object from Parser
@@ -247,7 +264,7 @@ class ParseResult:
         self.node = node
         return self
     
-    def error(self, error):
+    def failure(self, error):
         self.error = error
         return self
 
@@ -257,7 +274,8 @@ class ParseResult:
 def run(userInput, fileName):
     lexer = Lexer(fileName, userInput)
     tokens, error = lexer.makeTokens()
+    if error: return None, error
     print(tokens)
     parser = Parser(tokens)
-    return parser.expression(), None
-    # return abstractSyntaxTokens, error
+    ast = parser.parse()
+    return ast.node, ast.error
