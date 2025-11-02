@@ -21,6 +21,10 @@ class IllegalCharError(Error):
     def __init__(self, pos_start, pos_end, errorDetails):
         super().__init__(pos_start, pos_end, "Illegal Character error", errorDetails)
 
+class InvalidSytaxError(Error):
+    def __init__(self, pos_start, pos_end, errorDetails):
+        super().__init__(pos_start, pos_end, "Invalid Syntax error", errorDetails)
+
 ################
 #TOKENS
 ###############
@@ -141,10 +145,119 @@ class Lexer:
             return Token(self.tokenPos, TT_FLOAT, float(numStr))
         else:
             return Token(self.tokenPos, TT_INT, int(numStr))
+        
+################
+#NODES
+###############
+
+class NumberNode:
+    def __init__(self, token):
+        self.token = token
+    def __repr__(self):
+        return f'{self.token}'
+
+class BinaryNode:
+    def __init__(self, leftNode, rightNode, opToken):
+        self.leftNode = leftNode
+        self.rightNode = rightNode
+        self.opToken = opToken
+
+    def __repr__(self):
+        return f'({self.leftNode}, {self.opToken}, {self.rightNode})'
+    
+class UnaryNode:
+    def __init__(self, opToken, node):
+        self.opToken = opToken
+        self.node = node
+
+    def __repr__(self):
+        return f'({self.opToken}, {self.node})'
+        
+################
+#PARSER - create AbstractSyntaxTokens -oranize the tokens
+###############
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.currentToken = None
+        self.tokenIndex = -1
+        self.advanceToken()
+
+    def advanceToken(self):
+        self.tokenIndex += 1
+        self.currentToken = self.tokens[self.tokenIndex] if self.tokenIndex < len(self.tokens) else None
+
+    def factor(self):
+        token = self.currentToken
+        if(token.type in (TT_INT, TT_FLOAT)):
+            self.advanceToken()
+            return NumberNode(token)
+        elif(token.type in (TT_MINUS, TT_PLUS)):
+            self.advanceToken()
+            factor = self.factor()
+            return UnaryNode(token, factor)
+        elif(token.type in (TT_LPAREN, TT_RPAREN)):
+            self.advanceToken()
+            expression = self.expression()
+            if(self.currentToken.type == TT_RPAREN):
+                self.advanceToken()
+                return expression
+        
+    def term(self):
+        left = self.factor()
+        opToken = self.currentToken
+        while(opToken.type in (TT_MUL, TT_DIV)):
+            self.advanceToken()
+            right = self.factor()
+            left = BinaryNode(left, right, opToken)
+            opToken = self.currentToken
+        return left
+
+    def expression(self):
+        left = self.term()
+        opToken = self.currentToken
+        while(opToken.type in (TT_PLUS, TT_MINUS)):
+            self.advanceToken()
+            right = self.term()
+            left = BinaryNode(left, right, opToken)
+            opToken = self.currentToken
+        return left
+
+    def parse(self):
+        return self.expression()
+
+################
+#ParseResult - return object from Parser
+###############
+
+class ParseResult:
+    def __init__(self):
+        self.error = None
+        self.node = None
+
+    def register(self, res):
+        if(isinstance(res, ParseResult)):
+            if res.error:
+                self.error = res.error
+            return res.node
+        return res
+
+    def success(self, node):
+        self.node = node
+        return self
+    
+    def error(self, error):
+        self.error = error
+        return self
 
 ################
 #RUN
 ###############
 def run(userInput, fileName):
     lexer = Lexer(fileName, userInput)
-    return lexer.makeTokens()
+    tokens, error = lexer.makeTokens()
+    print(tokens)
+    parser = Parser(tokens)
+    return parser.expression(), None
+    # return abstractSyntaxTokens, error
