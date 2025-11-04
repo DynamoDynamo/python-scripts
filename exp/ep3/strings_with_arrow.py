@@ -16,7 +16,6 @@ def string_with_arrows(text, pos_start, pos_end):
 
         # Append to result
         result += line + '\n'
-        print(col_start, col_end)
         result += ' ' * col_start + '^' * (col_end - col_start)
 
         # Re-calculate indices
