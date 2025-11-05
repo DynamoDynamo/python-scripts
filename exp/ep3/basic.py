@@ -106,14 +106,21 @@ class Parser:
         token = self.currentToken
         
         if(token.type in (TT_INT, TT_FLOAT)):
-            print('inside loop')
             self.advance()
             return NumberNode(token)
-
+        elif(token.type == TT_LPAREN):
+            self.advance()
+            expression = self.expression()
+            if self.currentToken.type == TT_RPAREN:
+                self.advance()
+                return expression
+        elif token.type in (TT_PLUS, TT_MINUS):
+            self.advance()
+            factor = self.factor()
+            return UnaryNode(token, factor)
         
     def term(self):
         leftNode = self.factor()
-        print(leftNode)
         while(self.currentToken.type in (TT_MUL, TT_DIV)):
             opToken = self.currentToken
             self.advance()
