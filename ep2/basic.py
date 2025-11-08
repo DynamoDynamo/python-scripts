@@ -46,6 +46,9 @@ class Position:
 				self.col = col
 				self.fn = fn
 				self.ftxt = ftxt
+		
+		def __repr__(self):
+			return f'idx{self.idx}:col{self.col}:ln{self.ln}'
 
 		def advance(self, current_char=None):
 				self.idx += 1
@@ -269,7 +272,8 @@ class Parser:
 					self.current_tok.pos_start, self.current_tok.pos_end,
 					"Expected ')'"
 				))
-
+		print(tok.pos_start)
+		print(tok.pos_end)
 		return res.failure(InvalidSyntaxError(
 			tok.pos_start, tok.pos_end,
 			"Expected int or float"

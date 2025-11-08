@@ -124,7 +124,7 @@ class Parser:
                 self.advance()
                 return parseResult.success(expression)
             else:
-                return parseResult.error(
+                return parseResult.failure(
                     IllegalSyntaxError("Missing ')' right paranthesis", token.pos_start, token.pos_end)
                 )
         elif token.type in (TT_PLUS, TT_MINUS):
@@ -134,7 +134,7 @@ class Parser:
                 return parseResult
             return parseResult.success(UnaryNode(token, factor))
         else:
-            return parseResult.error(
+            return parseResult.failure(
                 IllegalSyntaxError("Missing mathSymbol or number", token.pos_start, token.pos_end)
             )
         
@@ -202,7 +202,7 @@ class ParseResult:
         self.node = node
         return self 
     
-    def error(self, error):
+    def failure(self, error):
         self.error = error
         return self
 
@@ -285,6 +285,8 @@ class Position:
             self.ln += 1
         else:
             self.col += 1
+    def __repr__(self):
+        return f'idx{self.idx}:col{self.col}:ln{self.ln}'
 
     def copy(self):
         return Position(self.col, self.ln, self.idx, self.text, self.fn)
@@ -296,5 +298,6 @@ class Position:
 def run(userInput, fileName):
     lexer = Lexer(userInput, fileName)
     tokens, error =  lexer.makeTokens()
+    if error: return None, error
     parser = Parser(tokens)
     return parser.parse()
