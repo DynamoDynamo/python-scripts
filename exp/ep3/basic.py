@@ -20,6 +20,11 @@ class Error:
 class IllegalCharError(Error):
     def __init__(self, errorDetails, pos_start, pos_end):
         super().__init__("Illegal Char", errorDetails, pos_start, pos_end)
+
+class IllegalSyntaxError(Error):
+    def __init__(self, errorDetails, pos_start, pos_end):
+        super().__init__("Illegal syntax", errorDetails, pos_start, pos_end)
+
 ###########
 #LEXER
 ###########
@@ -103,42 +108,103 @@ class Parser:
 
     def factor(self):
 
+        parseResult = ParseResult()
+
         token = self.currentToken
         
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advance()
-            return NumberNode(token)
+            return parseResult.success(NumberNode(token))
         elif(token.type == TT_LPAREN):
             self.advance()
-            expression = self.expression()
+            expression = parseResult.register(self.expression())
+            if parseResult.error:
+                return parseResult
             if self.currentToken.type == TT_RPAREN:
                 self.advance()
-                return expression
+                return parseResult.success(expression)
+            else:
+                return parseResult.error(
+                    IllegalSyntaxError("Missing ')' right paranthesis", token.pos_start, token.pos_end)
+                )
         elif token.type in (TT_PLUS, TT_MINUS):
             self.advance()
-            factor = self.factor()
-            return UnaryNode(token, factor)
+            factor = parseResult.register(self.factor())
+            if parseResult.error:
+                return parseResult
+            return parseResult.success(UnaryNode(token, factor))
+        else:
+            return parseResult.error(
+                IllegalSyntaxError("Missing mathSymbol or number", token.pos_start, token.pos_end)
+            )
         
     def term(self):
-        leftNode = self.factor()
+        parseResult = ParseResult()
+        #What object is returned here? one of the nodes or None if error
+        #that's why we should deal with parseResult, while checking the errors
+        leftNode = parseResult.register(self.factor())
+        if parseResult.error:
+            return parseResult
         while(self.currentToken.type in (TT_MUL, TT_DIV)):
             opToken = self.currentToken
             self.advance()
-            rightNode = self.factor()
+            rightNode = parseResult.register(self.factor())
+            if parseResult.error:
+                return parseResult
             leftNode = BinaryNode(leftNode, opToken, rightNode)
-        return leftNode
+        return parseResult.success(leftNode)
 
     def expression(self):
-        leftNode = self.term()
+        parseResult = ParseResult()
+        leftNode = parseResult.register(self.term())
+        if parseResult.error:
+            return parseResult
         while(self.currentToken.type in (TT_PLUS, TT_MINUS)):
             opToken = self.currentToken
             self.advance()
-            rightNode = self.term()
+            rightNode = parseResult.register(self.term())
+            if parseResult.error:
+                return parseResult
             leftNode = BinaryNode(leftNode, opToken, rightNode)
-        return leftNode
+        return parseResult.success(leftNode)
     
     def parse(self):
-        return self.expression(), None
+        result = self.expression()
+        if not result.error and self.currentToken.type != TT_EOF:
+            return None, IllegalSyntaxError("Missing one of the math symol", self.currentToken.pos_start, self.currentToken.pos_end)
+        return result.node, result.error
+    
+###########
+#ParseResult
+###########
+
+# result from self.factor(), self.expression(), self.term() is registered in the next methods
+#why?
+# if there is error, error can be return immediately
+
+class ParseResult:
+
+    def __init__(self):
+        self.node = None
+        self.error = None
+
+    def register(self, input):
+        #if res is not a instance of ParseResult, it must be instance of Token or one of the nodes
+        #Ultimately we r returning those nodes or tokens, 
+        # if input is instance of parseResult, we r assigning error to the ParseResult and returning node/Token object
+        if(isinstance(input, ParseResult)):
+            if input.error: 
+                self.error = input.error
+            return input.node
+        return input
+
+    def success(self, node):
+        self.node = node
+        return self 
+    
+    def error(self, error):
+        self.error = error
+        return self
 
 ###########
 #Nodes
