@@ -53,8 +53,8 @@ class Error:
         self.posEnd = posEnd
 
     def __repr__(self):
-        repr = f'{self.errorType}:{self.errorDetails}\n'
-        repr = f'File{self.posStart.fileName}, Line{self.posStart.ln}\n'
+        repr = f'{self.errorType}: {self.errorDetails}\n'
+        repr += f'File {self.posStart.fileName}, Line {self.posStart.ln + 1}\n'
         repr += string_with_arrows(self.posStart.userInput, self.posStart, self.posEnd)
         return repr
 
@@ -120,21 +120,32 @@ class UnaryNode:
         return f'({self.opToken}, {self.rightNode})'
     
 ###################
-#ParseResult
+#ParseResult - to tie node and error under one class
 ###################
 
 class ParseResult:
     def __init__(self):
-        pass
+        self.node = None
+        self.error = None
 
-    def success(self):
-        pass
+    def success(self, node):
+        self.node = node
+        return self
 
-    def failure(self):
-        pass
+    def failure(self, error):
+        self.error = error
+        return self
 
-    def register(self):
-        pass
+#regiseter returns node, if there is error in input, it assigns the error to currentParseResultObj
+    def register(self, parseInput):
+        #if res is not a instance of ParseResult, it must be instance of Token or one of the nodes
+        #Ultimately we r returning those nodes or tokens, 
+        # if input is instance of parseResult, we r assigning error to the ParseResult and returning node/Token object
+        if isinstance(parseInput, ParseResult):
+            if parseInput.error:
+                self.error = parseInput.error
+            return parseInput.node
+        return parseInput
     
 ###################
 #Parser
@@ -152,43 +163,62 @@ class Parser:
         self.currentToken = self.tokens[self.tokenIdx] if self.tokenIdx < len(self.tokens) else None
 
     def factor(self):
+        parseResult = ParseResult()
         token = self.currentToken
 
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advance()
-            return NumberNode(token)
+            return parseResult.success(NumberNode(token))
         if(token.type == TT_LPAREN):
             self.advance()
-            expression = self.expression()
+            expression = parseResult.register(self.expression())
+            if parseResult.error:
+                return parseResult
             if(self.currentToken.type == TT_RPAREN):
                 self.advance()
-                return expression
+                return parseResult.success(expression)
+            else:
+                return parseResult.failure(
+                    IllegalSyntaxError("Expected ')'", token.posStart, self.currentToken.posEnd)
+                )
         if(token.type in (TT_PLUS, TT_MINUS)):
             self.advance()
             unaryNode = UnaryNode(token, self.factor())
-            return unaryNode
+            return parseResult.success(unaryNode)
 
     def term(self):
-        leftNode = self.factor()
+        parseResult = ParseResult()
+        leftNode = parseResult.register(self.factor())
+        if parseResult.error:
+            return parseResult
         while(self.currentToken.type in (TT_MUL, TT_DIV)):
             opToken = self.currentToken
             self.advance()
-            rightNode = self.factor()
+            rightNode = parseResult.register(self.factor())
+            if parseResult.error:
+                return parseResult
             leftNode = BinaryNode(leftNode, rightNode, opToken)
-        return leftNode
+        return parseResult.success(leftNode)
 
     def expression(self):
-        leftNode = self.term()
+        parseResult = ParseResult()
+        leftNode = parseResult.register(self.term())
+        if parseResult.error:
+            return parseResult
         while(self.currentToken.type in (TT_PLUS, TT_MINUS)):
             opToken = self.currentToken
             self.advance()
-            rightNode = self.term()
+            rightNode = parseResult.register(self.term())
+            if parseResult.error:
+                return parseResult
             leftNode = BinaryNode(leftNode, rightNode, opToken)
-
-        return leftNode
+        return parseResult.success(leftNode)
 
     def parse(self):
-        return self.expression(), None
+        parseResult = self.expression()
+        if parseResult.error:
+            return None, parseResult.error
+        return parseResult.node, None
 
 ###################
 #Lexer - Lexer translate mathematical input tokens
@@ -268,7 +298,6 @@ def run(userInput, fileName):
     tokens, error =  lexer.makeTokens()
     if error:
         return None, error
-    print(tokens)
     parser = Parser(tokens)
     return parser.parse()
 

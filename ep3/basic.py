@@ -204,6 +204,7 @@ class ParseResult:
 		self.error = None
 		self.node = None
 
+
 	def register(self, res):
 		if isinstance(res, ParseResult):
 			if res.error: self.error = res.error
@@ -289,6 +290,7 @@ class Parser:
 	def bin_op(self, func, ops):
 		res = ParseResult()
 		left = res.register(func())
+		print(f'{left} node after register')
 		if res.error: return res
 
 		while self.current_tok.type in ops:
@@ -297,6 +299,7 @@ class Parser:
 			right = res.register(func())
 			if res.error: return res
 			left = BinOpNode(left, op_tok, right)
+			print(f'{left} is the expression')
 
 		return res.success(left)
 #######################################
