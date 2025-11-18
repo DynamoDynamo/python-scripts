@@ -169,7 +169,7 @@ class Parser:
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advance()
             return parseResult.success(NumberNode(token))
-        if(token.type == TT_LPAREN):
+        elif(token.type == TT_LPAREN):
             self.advance()
             expression = parseResult.register(self.expression())
             if parseResult.error:
@@ -179,12 +179,17 @@ class Parser:
                 return parseResult.success(expression)
             else:
                 return parseResult.failure(
-                    IllegalSyntaxError("Expected ')'", token.posStart, self.currentToken.posEnd)
+                    IllegalSyntaxError("Expected ')'", self.currentToken.posStart, self.currentToken.posEnd)
                 )
-        if(token.type in (TT_PLUS, TT_MINUS)):
+        elif(token.type in (TT_PLUS, TT_MINUS)):
             self.advance()
             unaryNode = UnaryNode(token, self.factor())
             return parseResult.success(unaryNode)
+        else:
+            return parseResult.failure(
+                IllegalCharError("Expected number", token.posStart, token.posEnd)
+            )
+        
 
     def term(self):
         parseResult = ParseResult()
@@ -216,9 +221,11 @@ class Parser:
 
     def parse(self):
         parseResult = self.expression()
-        if parseResult.error:
-            return None, parseResult.error
-        return parseResult.node, None
+        if not parseResult.error and self.currentToken.type != TT_EOF:
+            return parseResult.failure(
+                IllegalSyntaxError("Expected a math symbol", self.currentToken.posStart, self.currentToken)
+            )
+        return parseResult
 
 ###################
 #Lexer - Lexer translate mathematical input tokens
@@ -299,5 +306,6 @@ def run(userInput, fileName):
     if error:
         return None, error
     parser = Parser(tokens)
-    return parser.parse()
+    result = parser.parse()
+    return result.node, result.error
 

@@ -5,7 +5,7 @@ while True:
     if(userInput.lower() == 'exit'):
         sys.exit("See you soon!")
     result, error = basic.run(userInput, "experiment.sa")
-    if(result):
-        print(result)
-    else:
+    if(error):
         print(error)
+    else:
+        print(result)
