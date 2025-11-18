@@ -54,6 +54,7 @@ class Error:
 
     def __repr__(self):
         repr = f'{self.errorType}:{self.errorDetails}\n'
+        repr = f'File{self.posStart.fileName}, Line{self.posStart.ln}\n'
         repr += string_with_arrows(self.posStart.userInput, self.posStart, self.posEnd)
         return repr
 
@@ -62,16 +63,22 @@ class IllegalCharError(Error):
     def __init__(self, errorDetails, posStart, posEnd):
         super().__init__("Illegal character", errorDetails, posStart, posEnd)
 
+class IllegalSyntaxError(Error):
+
+    def __init__(self, errorDetails, posStart, posEnd):
+        super().__init__("Illegal Syntax", errorDetails, posStart, posEnd)
+
 ###################
 #Position
 ###################
 
 class Position:
-    def __init__(self, ln, col, idx, userInput):
+    def __init__(self, ln, col, idx, userInput, fileName):
         self.ln = ln
         self.col = col
         self.idx = idx
         self.userInput = userInput
+        self.fileName =  fileName
 
     def advance(self, currentChar=None):
         self.idx += 1
@@ -82,7 +89,7 @@ class Position:
             self.col += 1
 
     def copy(self):
-        return Position(self.ln, self.col, self.idx, self.userInput)
+        return Position(self.ln, self.col, self.idx, self.userInput, self.fileName)
     
 ###################
 #Node
@@ -113,6 +120,23 @@ class UnaryNode:
         return f'({self.opToken}, {self.rightNode})'
     
 ###################
+#ParseResult
+###################
+
+class ParseResult:
+    def __init__(self):
+        pass
+
+    def success(self):
+        pass
+
+    def failure(self):
+        pass
+
+    def register(self):
+        pass
+    
+###################
 #Parser
 ###################
 
@@ -129,11 +153,20 @@ class Parser:
 
     def factor(self):
         token = self.currentToken
-        print(f'token in factor {self.currentToken}')
 
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advance()
             return NumberNode(token)
+        if(token.type == TT_LPAREN):
+            self.advance()
+            expression = self.expression()
+            if(self.currentToken.type == TT_RPAREN):
+                self.advance()
+                return expression
+        if(token.type in (TT_PLUS, TT_MINUS)):
+            self.advance()
+            unaryNode = UnaryNode(token, self.factor())
+            return unaryNode
 
     def term(self):
         leftNode = self.factor()
@@ -162,10 +195,10 @@ class Parser:
 ###################
 
 class Lexer:
-    def __init__(self, userInput):
+    def __init__(self, userInput, fileName):
         self.userInput = userInput
         self.index = -1
-        self.tokenPos = Position(0, -1, -1, userInput)
+        self.tokenPos = Position(0, -1, -1, userInput, fileName)
         self.currentChar = None
         self.advance()
 
@@ -230,8 +263,8 @@ class Lexer:
 ###################
 #Run
 ###################
-def run(userInput):
-    lexer = Lexer(userInput)
+def run(userInput, fileName):
+    lexer = Lexer(userInput, fileName)
     tokens, error =  lexer.makeTokens()
     if error:
         return None, error
