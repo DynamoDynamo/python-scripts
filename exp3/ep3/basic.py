@@ -148,6 +148,56 @@ class ParseResult:
         return parseInput
     
 ###################
+#Number
+###################
+
+
+class Number:
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return f'{self.value}'
+    
+    def add_to(self, other):
+        if(isinstance(other, Number)):
+            return Number(self.value+other)
+    def sub_to(self, other):
+        if(isinstance(other, Number)):
+            return Number(self.value-other)
+    def mul_to(self, other):
+        if(isinstance(other, Number)):
+            return Number(self.value*other)
+    def div_by(self, other):
+        if(isinstance(other, Number)):
+            return Number(self.value/other)
+
+###################
+#Interpreter
+###################
+  
+class Interpreter:
+    def visit(self, node):
+        #we are creating a method name
+        method_name = f'visit_{type(node).__name__}'
+        method = getattr(self, method_name, 'no_visit_method')
+        return method(node)
+    
+    def no_visit_method(self, node):
+        raise Exception(f'No visit_{type(node).__name__} method defined')
+    def visit_NumberNode(self, node):
+        print(f'found Number node {node}')
+
+    def visit_BinaryNode(self, node):
+        print(f'found Binary node {node.leftNode}:{node.rightNode}')
+        self.visit(node.leftNode)
+        self.visit(node.rightNode)
+
+    def visit_UnaryNode(self, node):
+        print(f'found UnaryNode {node.rightNode}')
+        self.visit(node.rightNode)
+    
+###################
 #Parser
 ###################
 
@@ -183,7 +233,10 @@ class Parser:
                 )
         elif(token.type in (TT_PLUS, TT_MINUS)):
             self.advance()
-            unaryNode = UnaryNode(token, self.factor())
+            factorNode = parseResult.register(self.factor())
+            if parseResult.error:
+                return parseResult
+            unaryNode = UnaryNode(token, factorNode)
             return parseResult.success(unaryNode)
         else:
             return parseResult.failure(
@@ -297,15 +350,28 @@ class Lexer:
             return Token(TT_INT, startPos, int(numStr), self.tokenPos)
     
 
+
 ###################
 #Run
 ###################
 def run(userInput, fileName):
+
+    #Generate Tokens
     lexer = Lexer(userInput, fileName)
     tokens, error =  lexer.makeTokens()
     if error:
         return None, error
+    
+    #Generate Asymetrical Tokens
     parser = Parser(tokens)
     result = parser.parse()
-    return result.node, result.error
+    if result.error:
+        return None, result.error
+    
+    #Run programe
+    print('is the node')
+    print(result.node)
+    interpreter = Interpreter()
+    interpreterResult = interpreter.visit(result.node)
+    return result.node, None
 

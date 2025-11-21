@@ -290,7 +290,6 @@ class Parser:
 	def bin_op(self, func, ops):
 		res = ParseResult()
 		left = res.register(func())
-		print(f'{left} node after register')
 		if res.error: return res
 
 		while self.current_tok.type in ops:
