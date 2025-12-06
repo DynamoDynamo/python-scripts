@@ -99,6 +99,9 @@ class NumberNode:
     def __init__(self, numberToken):
         self.numberToken = numberToken
 
+        self.pos_start = self.numberToken.posStart
+        self.pos_end = self.numberToken.posEnd
+
     def __repr__(self):
         return f'{self.numberToken}'
     
@@ -108,6 +111,9 @@ class BinaryNode:
         self.rightNode = rightNode
         self.opToken = opToken
 
+        self.pos_start = self.leftNode.pos_start
+        self.pos_end = self.rightNode.pos_end
+
     def __repr__(self):
         return f'({self.leftNode}, {self.opToken}, {self.rightNode})'
     
@@ -115,6 +121,9 @@ class UnaryNode:
     def __init__(self, opToken, rightNode):
         self.opToken = opToken
         self.rightNode = rightNode
+
+        self.pos_start = self.opToken.posStart
+        self.pos_end = self.rightNode.posEnd
 
     def __repr__(self):
         return f'({self.opToken}, {self.rightNode})'
@@ -155,22 +164,28 @@ class ParseResult:
 class Number:
     def __init__(self, value):
         self.value = value
+        self.set_pos()
+
+    def set_pos(self, pos_start=None, pos_end=None):
+        self.pos_start = pos_start
+        self.pos_end = pos_end 
+        return self
 
     def __repr__(self):
         return f'{self.value}'
     
     def add_to(self, other):
         if(isinstance(other, Number)):
-            return Number(self.value+other)
+            return Number(self.value+other.value)
     def sub_to(self, other):
         if(isinstance(other, Number)):
-            return Number(self.value-other)
+            return Number(self.value-other.value)
     def mul_to(self, other):
         if(isinstance(other, Number)):
-            return Number(self.value*other)
+            return Number(self.value*other.value)
     def div_by(self, other):
         if(isinstance(other, Number)):
-            return Number(self.value/other)
+            return Number(self.value/other.value)
 
 ###################
 #Interpreter
@@ -185,17 +200,34 @@ class Interpreter:
     
     def no_visit_method(self, node):
         raise Exception(f'No visit_{type(node).__name__} method defined')
+    
     def visit_NumberNode(self, node):
-        print(f'found Number node {node}')
+        return Number(node.numberToken.value).set_pos(node.pos_start, node.pos_end)
 
     def visit_BinaryNode(self, node):
-        print(f'found Binary node {node.leftNode}:{node.rightNode}')
-        self.visit(node.leftNode)
-        self.visit(node.rightNode)
+        # result = None
+        left = self.visit(node.leftNode)
+        right = self.visit(node.rightNode)
+        result = left.add_to(right)
+
+        # if node.opToken.value == TT_PLUS:
+            
+        if node.opToken.value == TT_MINUS:
+            result = left.sub_to(right)
+        elif node.opToken.value == TT_MUL:
+            result = left.mul_to(right)
+        elif node.opToken.value == TT_DIV:
+            result = left.div_by(right)
+
+        return result.set_pos(node.pos_start, node.pos_end)
 
     def visit_UnaryNode(self, node):
-        print(f'found UnaryNode {node.rightNode}')
-        self.visit(node.rightNode)
+        number = self.visit(node.rightNode)
+
+        if node.op_tok.type == TT_MINUS:
+            number = number.mul_to(Number(-1))
+
+        return number.set_pos(node.pos_start, node.pos_end)
     
 ###################
 #Parser
@@ -373,5 +405,5 @@ def run(userInput, fileName):
     print(result.node)
     interpreter = Interpreter()
     interpreterResult = interpreter.visit(result.node)
-    return result.node, None
+    return interpreterResult, None
 
