@@ -35,6 +35,10 @@ class InvalidSyntaxError(Error):
 		def __init__(self, pos_start, pos_end, details=''):
 				super().__init__(pos_start, pos_end, 'Invalid Syntax', details)
 
+class RTError(Error):
+		def __init__(self, pos_start, pos_end, details=''):
+				super().__init__(pos_start, pos_end, 'Runtime Error', details)
+
 #######################################
 # POSITION
 #######################################
@@ -59,6 +63,9 @@ class Position:
 
 		def copy(self):
 				return Position(self.idx, self.ln, self.col, self.fn, self.ftxt)
+		
+		def __repr__(self):
+			return f'{self.idx}, {self.ln}, {self.col}, {self.fn}'
 
 #######################################
 # TOKENS
@@ -168,6 +175,7 @@ class Lexer:
 class NumberNode:
 	def __init__(self, tok):
 		self.tok = tok
+
 		self.pos_start = tok.pos_start
 		self.pos_end = tok.pos_end
 
@@ -179,8 +187,9 @@ class BinOpNode:
 		self.left_node = left_node
 		self.op_tok = op_tok
 		self.right_node = right_node
+
 		self.pos_start = left_node.pos_start
-		self.pos_end = right_node.pos_end
+		self.pos_end = left_node.pos_end
 
 	def __repr__(self):
 		return f'({self.left_node}, {self.op_tok}, {self.right_node})'
@@ -189,6 +198,7 @@ class UnaryOpNode:
 	def __init__(self, op_tok, node):
 		self.op_tok = op_tok
 		self.node = node
+
 		self.pos_start = op_tok.pos_start
 		self.pos_end = node.pos_end
 
@@ -203,7 +213,6 @@ class ParseResult:
 	def __init__(self):
 		self.error = None
 		self.node = None
-
 
 	def register(self, res):
 		if isinstance(res, ParseResult):
@@ -298,55 +307,35 @@ class Parser:
 			right = res.register(func())
 			if res.error: return res
 			left = BinOpNode(left, op_tok, right)
-			print(f'{left} is the expression')
 
 		return res.success(left)
-#######################################
-# INTERPRETER
-#######################################
-  
-class Interpreter:
-	def visit(self, node):
-		method_name = f'visit_{type(node).__name__}'
-		method = getattr(self, method_name, self.no_visit_method)
-		return method(node)
 	
-	def no_visit_method(self, node):
-		raise Exception(f'No visit_{type(node).__name__} method defined')
-	
-	def visit_NumberNode(self, node):
-		number =  Number(node.tok.value).set_pos(node.pos_start, node.pos_end) 
-		return number
-
-	def visit_BinOpNode(self, node):
-		left = self.visit(node.left_node)
-		right = self.visit(node.right_node)
-
-		op_token = node.op_tok.type
-
-		if op_token == TT_PLUS:
-			result = left.added_to(right)
-		elif op_token == TT_MINUS:
-			result = left.subbed_by(right)
-		elif op_token == TT_MUL:
-			result = left.multed_by(right)
-		elif op_token == TT_DIV:
-			result = left.divided_by(right)
-
-		return result.set_pos(node.pos_start, node.pos_end)
-
-	def visit_UnaryOpNode(self, node):
-		number = self.visit(node.node)
-
-		op_token = node.op_tok.type
-
-		if op_token == TT_MINUS:
-			number = number.multed_by(Number(-1))
-
-		return number.set_pos(node.pos_start, node.pos_end)
-
 #######################################
-# VALUES
+# RTResult
+#######################################
+
+class RTResult:
+	def __init__(self):
+		self.value = None
+		self.error = None
+
+	def register(self, res):
+		if isinstance(res, RTResult):
+			if res.error:
+				self.error = res.error
+			return res.value
+		return res
+
+	def success(self, value):
+		self.value = value 
+		return self
+
+	def failure(self, error):
+		self.error = error
+		return self
+	
+#######################################
+# Values
 #######################################
 
 class Number:
@@ -354,30 +343,90 @@ class Number:
 		self.value = value
 		self.set_pos()
 
-	def __repr__(self):
-		return str(self.value)
-
-	def set_pos(self, pos_start=None, pos_end=None):
-		self.pos_start = pos_start
-		self.pos_end = pos_end
+	def set_pos(self, pos_start = None, pos_end = None):
+		self.pos_start = None
+		self.pos_end = None
 		return self
-
+	
 	def added_to(self, other):
 		if isinstance(other, Number):
-			return Number(self.value + other.value)
+			return Number(self.value + other.value), None
 		
 	def subbed_by(self, other):
 		if isinstance(other, Number):
-			return Number(self.value - other.value)
+			return Number(self.value - other.value), None
 		
-	def multed_by(self, other):
+	def multed_to(self, other):
 		if isinstance(other, Number):
-			return Number(self.value * other.value)
+			return Number(self.value * other.value), None
 		
 	def divided_by(self, other):
 		if isinstance(other, Number):
-			return Number(self.value / other.value)
+			if(other.value == 0):
+				print(other.pos_start)
+				print(other.pos_end)
+				return None, RTError(
+					other.pos_start, other.pos_end, 'Division by zero'
+				)
+			return Number(self.value / other.value), None
+		
+	def __repr__(self):
+		return str(self.value)
+		
+	
+#######################################
+# Interpreter
+#######################################
 
+class Interpretor:
+	def visit(self, node):
+		methodName = f'visit_{type(node).__name__}'
+		method = getattr(self, methodName, self.no_visit_method)
+		return method(node)
+
+	def no_visit_method(self, node):
+		raise Exception(f'No visit_{type(node).__name__} is defined')
+
+	def visit_BinOpNode(self, node):
+		rtResult = RTResult()
+		left = rtResult.register(self.visit(node.left_node))
+		if rtResult.error:
+			return rtResult
+		right = rtResult.register(self.visit(node.right_node))
+		if rtResult.error:
+			return rtResult
+
+		if node.op_tok.type == TT_PLUS:
+			result, error = left.added_to(right)
+		elif node.op_tok.type == TT_MINUS:
+			result, error = left.subbed_by(right)
+		elif node.op_tok.type == TT_MUL:
+			result, error = left.multed_to(right)
+		elif node.op_tok.type == TT_DIV:
+			result, error = left.divided_by(right)
+
+		if error:
+			return rtResult.failure(error)
+		else:
+			return rtResult.success(result.set_pos(node.pos_start, node.pos_end))
+
+	def visit_UnaryOpNode(self, node):
+		rtResult = RTResult()
+		number = rtResult.register(self.visit(node.node))
+		if rtResult.error:
+			return rtResult
+		
+		error = None
+		if node.op_tok.type == TT_MINUS:
+			number,error = number.multed_to(Number(-1))
+
+		if error:
+			return rtResult.failure(error)
+		else:
+			return rtResult.success(number.set_pos(node.pos_start, node.pos_end))
+
+	def visit_NumberNode(self, node):
+		return RTResult().success(Number(node.tok.value).set_pos(node.pos_start, node.pos_end))
 
 #######################################
 # RUN
@@ -392,10 +441,11 @@ def run(fn, text):
 		# Generate AST
 		parser = Parser(tokens)
 		ast = parser.parse()
-
 		if ast.error:
 			return None, ast.error
 		
-		interPreter = Interpreter()
-		result = interPreter.visit(ast.node)
-		return result, None
+		#Run programe
+		interpretor = Interpretor()
+		result = interpretor.visit(ast.node)
+
+		return result.value, result.error
