@@ -49,6 +49,9 @@ class Position:
         self.userInput = userInput
         self.fileName = fileName
 
+    def __repr__(self):
+        return f'{self.ln}, {self.idx}, {self.col}'
+
     def advance(self, currentChar = None):
         self.idx += 1
         self.col += 1

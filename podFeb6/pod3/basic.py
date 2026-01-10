@@ -48,6 +48,9 @@ class Position:
         self.fname = fname
         self.ftxt = ftxt
 
+    def __repr__(self):
+        return f'{self.ln}, {self.idx}, {self.col}'
+
     def advance(self, currentChar = None):
         self.idx += 1
         self.col += 1
@@ -149,9 +152,9 @@ class Lexer:
             self.advance()
         
         if dot_count == 1:
-            return Token(TT_FLOAT, float(num_str), startPos, self.position.copy())
+            return Token(TT_FLOAT, float(num_str), startPos, self.position)
         else:
-            return Token(TT_INT, int(num_str), startPos, self.position.copy())
+            return Token(TT_INT, int(num_str), startPos, self.position)
         
 ############
 #NODES
@@ -226,11 +229,30 @@ class Parser:
         result = ParseResult()
 
         #isCurrentToken a int or float
-        print(currentToken.type)
         if currentToken.type in (TT_INT, TT_FLOAT):
             #advance and return numbertoken
             result.register(self.advance())
             return result.success(NumberNode(currentToken))
+        elif currentToken.type in (TT_PLUS, TT_MINUS):
+            #advance and return factor
+            result.register(self.advance())
+            factor = result.register(self.factor())
+            if result.error:
+                return result
+            return result.success(UnaryNode(currentToken, factor))
+        elif currentToken.type in (TT_LPAREN):
+            #advance and get expression
+            result.register(self.advance())
+            expr = result.register(self.expression())
+            if result.error:
+                return result
+            if self.currentToken.type == TT_RPAREN:
+                result.register(self.advance())
+                return result.success(expr)
+            else:
+                return result.failure(
+                    InvalidSyntaxErr("Expected ) right paran", self.currentToken.pos_start, self.currentToken.pos_end)
+                )
         return result.failure(
             InvalidCharErr("Expected int or float number", currentToken.pos_start, currentToken.pos_end)
         )
@@ -261,7 +283,7 @@ class Parser:
         result = self.expression()
         if not result.error and self.currentToken.type != TT_EOF:
             return result.failure(
-                InvalidSyntaxErr("Expected + - * /", self.currentToken.pos_start,self.currentToken.pos_end))
+                InvalidSyntaxErr("Expected + - * /", self.currentToken.pos_start, self.currentToken.pos_end))
         return result
         
 ############
@@ -276,7 +298,6 @@ def run(userInput, fname):
         return None, error
 
     #create Abstract syntax tokens
-    print(tokens)
     parser = Parser(tokens)
     result = parser.parse()
 
