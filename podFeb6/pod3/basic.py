@@ -1,8 +1,9 @@
 
 from strings_with_arrows import *
 
-#TASK: tokenize input
-#TASK: arrange tokens into organized nodes for execution
+#TASK: lexer, tokenize input
+#TASK: parser, arrange tokens into organized nodes for execution
+#TASK: interpreter, calculate result
 
 ############
 #TOKENS
@@ -164,6 +165,9 @@ class NumberNode:
     def __init__(self, tok):
         self.token = tok
 
+        self.pos_start = self.token.pos_start
+        self.pos_end = self.token.pos_end
+
     def __repr__(self):
         return f'{self.token}'
     
@@ -173,6 +177,9 @@ class BinaryNode:
         self.op_tok = op_tok
         self.rightNode = rightNode
 
+        self.pos_start = self.leftNode.pos_start
+        self.pos_end = self.rightNode.pos_end
+
     def __repr__(self):
         return f'({self.leftNode}, {self.op_tok}, {self.rightNode})'
 
@@ -181,8 +188,11 @@ class UnaryNode:
         self.op_tok = op_tok
         self.rightNode = rightNode
 
+        self.pos_start = self.op_tok.pos_start
+        self.pos_end = self.rightNode.pos_end
+
     def __repr__(self):
-        return f'{self.op_tok}, {self.rightNode}'
+        return f'({self.op_tok}, {self.rightNode})'
     
 ############
 #PARSERESULT
@@ -285,6 +295,83 @@ class Parser:
             return result.failure(
                 InvalidSyntaxErr("Expected + - * /", self.currentToken.pos_start, self.currentToken.pos_end))
         return result
+    
+############
+#VALUES
+############
+
+#this class is for storing number and operating with other number i:e calculate result
+class Number:
+
+    def __init__(self, value):
+        self.value = value
+        self.set_pos()
+
+    def set_pos(self, pos_start = None, pos_end = None):
+        self.pos_start = pos_start
+        self.pos_end = pos_end
+        return self
+
+    def added_to(self, other):
+        if isinstance(other, Number):
+            return Number(self.value + other.value)
+
+    def subbed_by(self, other):
+        if isinstance(other, Number):
+            return Number(self.value - other.value)
+
+    def multed_by(self, other):
+        if isinstance(other, Number):
+            return Number(self.value * other.value)
+
+    def divided_by(self, other):
+        if isinstance(other, Number):
+            return Number(self.value / other.value)
+        
+    def __repr__(self):
+        return str(self.value)
+
+    
+############
+#INTERPRETER
+############
+#there is no init method in interpreter
+
+class Interpreter:
+
+    def visit(self, node):
+        method_name = f'visit_{type(node).__name__}'
+        method = getattr(self, method_name, self.no_visit_method)
+        return method(node)
+    
+    def no_visit_method(self, node):
+        raise Exception(f'No visit_{type(node).__name__} is defined')
+    
+    def visit_NumberNode(self, node):
+        return Number(node.token.value).set_pos(node.pos_start, node.pos_end)
+
+    def visit_BinaryNode(self, node):
+        left = self.visit(node.leftNode)
+        right = self.visit(node.rightNode)
+
+        if node.op_tok.type == TT_PLUS:
+            result = left.added_to(right)
+        elif node.op_tok.type == TT_MINUS:
+            result = left.subbed_by(right)
+        elif node.op_tok.type == TT_MUL:
+            result = left.multed_by(right)
+        elif node.op_tok.type == TT_DIV:
+            result = left.divided_by(right)
+
+        return result.set_pos(node.pos_start, node.pos_end)
+
+    def visit_UnaryNode(self, node):
+        number = self.visit(node.rightNode)
+
+        if node.op_tok.type == TT_MINUS:
+            number = number.multed_by(Number(-1))
+
+        return number.set_pos(node.pos_start, node.pos_end)
         
 ############
 #RUN
@@ -299,7 +386,16 @@ def run(userInput, fname):
 
     #create Abstract syntax tokens
     parser = Parser(tokens)
+    print(tokens)
     result = parser.parse()
 
-    return result.node, result.error
+    if result.error:
+        return None, result.error
+
+    #Run program
+    interpreter = Interpreter()
+    print(result.node)
+    result = interpreter.visit(result.node)
+
+    return result, None
 
