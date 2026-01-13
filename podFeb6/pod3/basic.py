@@ -88,6 +88,30 @@ class InvalidSyntaxErr(Error):
     def __init__(self, errorDetails, pos_start, pos_end):
         super().__init__("InvalidSyntaxErr", errorDetails, pos_start, pos_end)
 
+class RTErr(Error):
+    def __init__(self, errorDetails, pos_start, pos_end, context):
+        super().__init__("RunTimeErr", errorDetails, pos_start, pos_end)
+        self.context = context
+
+    def __repr__(self):
+        errMsg = self.generate_traceback()
+        errMsg += f'{self.errName}: {self.errDetails}\n'
+        errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+        return errMsg
+
+    def generate_traceback(self):
+        result = ''
+        pos = self.pos_start
+        ctx = self.context
+
+        while ctx:
+            result += f' File {pos.fname}, Line {pos.ln + 1}, in {ctx.display_name}\n'
+            pos = ctx.parent_entry_pos
+            ctx = ctx.parent
+
+        return 'Traceback (most recent call):\n' + result
+
+
 
 ############
 #LEXER
@@ -306,31 +330,60 @@ class Number:
     def __init__(self, value):
         self.value = value
         self.set_pos()
+        self.set_context()
 
     def set_pos(self, pos_start = None, pos_end = None):
         self.pos_start = pos_start
         self.pos_end = pos_end
         return self
+    
+    def set_context(self, context = None):
+        self.context = context
+        return self
 
     def added_to(self, other):
         if isinstance(other, Number):
-            return Number(self.value + other.value)
+            return Number(self.value + other.value).set_context(self.context), None
 
     def subbed_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value - other.value)
+            return Number(self.value - other.value).set_context(self.context), None
 
     def multed_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value * other.value)
+            return Number(self.value * other.value).set_context(self.context), None
 
     def divided_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value / other.value)
+            if other.value == 0:
+                return None, RTErr("Division by zero", other.pos_start, other.pos_end, self.context)
+            return Number(self.value / other.value).set_context(self.context), None
         
     def __repr__(self):
         return str(self.value)
 
+############
+#RUNTIME RESULT
+############
+
+class RTResult:
+
+    def __init__(self):
+        self.value = None
+        self.error = None
+    
+    def register(self, res):
+        if res.error:
+            self.error = res.error
+        return res.value
+
+    def success(self, value):
+        self.value = value
+        return self
+
+    def failure(self, err):
+        self.error = err
+        return self
     
 ############
 #INTERPRETER
@@ -339,40 +392,75 @@ class Number:
 
 class Interpreter:
 
-    def visit(self, node):
+    def visit(self, node, context):
         method_name = f'visit_{type(node).__name__}'
         method = getattr(self, method_name, self.no_visit_method)
-        return method(node)
+        return method(node, context)
     
-    def no_visit_method(self, node):
+    def no_visit_method(self, node, context):
         raise Exception(f'No visit_{type(node).__name__} is defined')
     
-    def visit_NumberNode(self, node):
-        return Number(node.token.value).set_pos(node.pos_start, node.pos_end)
+    def visit_NumberNode(self, node, context):
+        return RTResult().success(
+            Number(node.token.value)
+            .set_context(context)
+            .set_pos(node.pos_start, node.pos_end)
+        )
 
-    def visit_BinaryNode(self, node):
-        left = self.visit(node.leftNode)
-        right = self.visit(node.rightNode)
+    def visit_BinaryNode(self, node, context):
+        res = RTResult()
+        left = res.register(self.visit(node.leftNode, context))
+        if res.error:
+            return res
+        right = res.register(self.visit(node.rightNode, context))
+        if res.error:
+            return res
 
         if node.op_tok.type == TT_PLUS:
-            result = left.added_to(right)
+            result, error = left.added_to(right)
         elif node.op_tok.type == TT_MINUS:
-            result = left.subbed_by(right)
+            result, error = left.subbed_by(right)
         elif node.op_tok.type == TT_MUL:
-            result = left.multed_by(right)
+            result, error = left.multed_by(right)
         elif node.op_tok.type == TT_DIV:
-            result = left.divided_by(right)
+            result, error = left.divided_by(right)
 
-        return result.set_pos(node.pos_start, node.pos_end)
+        if error:
+            return res.failure(error)
+        else:
+            return res.success(
+                result.set_pos(node.pos_start, node.pos_end)
+            )
 
-    def visit_UnaryNode(self, node):
-        number = self.visit(node.rightNode)
+    def visit_UnaryNode(self, node, context):
+        res = RTResult()
 
-        if node.op_tok.type == TT_MINUS:
-            number = number.multed_by(Number(-1))
-
-        return number.set_pos(node.pos_start, node.pos_end)
+        number = res.register(self.visit(node.rightNode, context))
+        if res.error:
+            return res
         
+        error = None
+        if node.op_tok.type == TT_MINUS:
+            number,error = number.multed_by(Number(-1))
+
+        if error:
+            return res.failure(error)
+        else:
+            return res.success(
+                number.set_pos(node.pos_start, node.pos_end)
+            )
+        
+############
+#CONTEXT
+############
+
+class Context:
+    def __init__(self, display_name, parent = None, parent_entry_pos = None):
+        self.display_name = display_name
+        self.parent = parent
+        self.parent_entry_pos = parent_entry_pos
+    
+
 ############
 #RUN
 ############
@@ -395,7 +483,8 @@ def run(userInput, fname):
     #Run program
     interpreter = Interpreter()
     print(result.node)
-    result = interpreter.visit(result.node)
+    context = Context('<program>')
+    result = interpreter.visit(result.node, context)
 
-    return result, None
+    return result.value, result.error
 
