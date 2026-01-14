@@ -3,6 +3,7 @@ from strings_with_arrows import *
 
 # TASK: tokenize userInput
 # TASK: give syntax to tokens and arrange them to nodes
+# TASK: calcuate nodes, if err, return context
 
 
 ###########
@@ -302,5 +303,10 @@ def run(fn, ftxt):
     print(tokens)
     parser = Parser(tokens)
     ast = parser.parse()
+    if ast.err:
+        return None, ast.err
+    
+    #calculate, if error, return context
+    print(ast.node)
 
     return ast.node, ast.err
