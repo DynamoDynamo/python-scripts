@@ -31,7 +31,7 @@ class Tokens:
         self.pos_end.advance()
 
         if pos_end:
-            self.pos_end = pos_end.copy()
+            self.pos_end = pos_end
 
     def __repr__(self):
         if self.tokenValue:
@@ -49,6 +49,9 @@ class Position:
         self.col = col
         self.fn = fn
         self.ftxt = ftxt
+
+    def __repr__(self):
+        return f'{self.ln}, {self.idx}, {self.col}'
 
     def advance(self, currentChar = None):
         self.idx += 1
@@ -77,13 +80,17 @@ class Error:
 
     def __repr__(self):
         errMsg = f'{self.errName}: {self.errDetails}\n'
-        errMsg += f'File: {self.pos_start.fn}, Line {self.pos_start.ln}\n'
+        errMsg += f'File: {self.pos_start.fn}, Line {self.pos_start.ln + 1}\n'
         errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
         return errMsg
     
 class InvalidCharErr(Error):
     def __init__(self, errDetails, pos_start, pos_end):
         super().__init__("InvalidCharErr", errDetails, pos_start, pos_end)
+
+class InvalidSyntaxErr(Error):
+    def __init__(self, errDetails, pos_start, pos_end):
+        super().__init__("InvalidSyntaxErr", errDetails, pos_start, pos_end)
 
 ###########
 #LEXER
@@ -92,7 +99,6 @@ class InvalidCharErr(Error):
 class Lexer:
     def __init__(self, ftxt, fn):
         self.ftxt = ftxt
-        self.fn = fn
         self.currentChar = None
         self.position = Position(-1, 0, -1, fn, ftxt)
         self.advance()
@@ -132,6 +138,7 @@ class Lexer:
                 currentPos = self.position.copy()
                 self.advance()
                 return None, InvalidCharErr("'" + currentChar + "'", currentPos, self.position)
+        tokens.append(Tokens(TT_EOF, pos_start=self.position.copy()))
         return tokens, None
     
     def makeNumberTokens(self):
@@ -201,7 +208,7 @@ class ParseResult:
         self.node = node
         return self
     
-    def error(self, err):
+    def failure(self, err):
         self.err = err
         return self
     
@@ -220,25 +227,55 @@ class Parser:
     def advance(self):
         self.index += 1
         self.currentToken = self.tokens[self.index] if self.index < len(self.tokens) else None
-        return self
-
-    def expression(self):
-        pass
-
-    def term(self):
-        pass
-
+        return self.currentToken
+    
     def factor(self):
         token = self.currentToken
         parseResult = ParseResult()
-
         if token.tokenType in (TT_INT, TT_FLOAT):
             #advance and return number node obj
-            self.advance()
+            parseResult.register(self.advance())
             return parseResult.success(NumberNode(token))
+        if token.tokenType == TT_LPAREN:
+            #if tokentype is left paranthesis, get expression after, check if there is rParen, if not return err
+            parseResult.register(self.advance())
+            expr = parseResult.register(self.expression())
+            if parseResult.err:
+                return parseResult
+            if self.currentToken.tokenType == TT_RPAREN:
+                parseResult.register(self.advance())
+                return parseResult.success(expr)
+            return parseResult.failure(InvalidSyntaxErr("required ) right paren", self.currentToken.pos_start, self.currentToken.pos_end))
+        return parseResult.failure(InvalidCharErr("required int or float", token.pos_start, token.pos_end))
+
+
+    def expression(self):
+        return self.binaryOperation(self.term, (TT_PLUS, TT_MINUS))
+
+    def term(self):
+        return self.binaryOperation(self.factor, (TT_MUL, TT_DIV))
+    
+    def binaryOperation(self, func, op_tokens):
+        parseResult = ParseResult()
+        left = parseResult.register(func())
+        if parseResult.err:
+            return parseResult
+        while(self.currentToken.tokenType in op_tokens):
+            op_tok = self.currentToken
+            parseResult.register(self.advance())
+            right = parseResult.register(func())
+            if parseResult.err:
+                return parseResult
+            left = BinaryNode(left, op_tok, right)
+        return parseResult.success(left)
 
     def parse(self):
-        pass
+        parsedResult = self.expression()
+        if not parsedResult.err and self.currentToken.tokenType != TT_EOF:
+            return parsedResult.failure(
+                InvalidSyntaxErr("required + - * /", self.currentToken.pos_start, self.currentToken.pos_end)
+            )
+        return parsedResult
 
 
 ###########
@@ -251,4 +288,12 @@ def run(fn, ftxt):
     lexer = Lexer(ftxt, fn)
     tokens, error = lexer.makeTokens()
 
-    return tokens, error
+    if error:
+        return None, error
+    
+    #create Abstract syntax token
+    print(tokens)
+    parser = Parser(tokens)
+    ast = parser.parse()
+
+    return ast.node, ast.err
