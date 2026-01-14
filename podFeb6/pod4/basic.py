@@ -236,6 +236,13 @@ class Parser:
             #advance and return number node obj
             parseResult.register(self.advance())
             return parseResult.success(NumberNode(token))
+        if token.tokenType in (TT_PLUS, TT_MINUS):
+            #if tokentype is + or - in factor, upcoming expression in unarycode
+            parseResult.register(self.advance())
+            factor = parseResult.register(self.factor())
+            if parseResult.err:
+                return parseResult
+            return parseResult.success(UnaryNode(token, factor))
         if token.tokenType == TT_LPAREN:
             #if tokentype is left paranthesis, get expression after, check if there is rParen, if not return err
             parseResult.register(self.advance())
