@@ -1,0 +1,34 @@
+factor: INT|FLOAT < this grabs number
+      : (PLUS|MINUS) factor < this grabs unary number
+      : LPAREN expr RPAREN < this grabs expr btw l & r paren
+
+term : (factor (MUL | DIV) factor)* < */ symbols takes priority
+
+expr: term ((PLUS | MINUS) term)* < +- comes next
+
+### WE r adding POW, how are the priorities changed
+
+atom: INT|FLOAT < this grabs number
+      : LPAREN expr RPAREN < this grabs expr btw l & r paren
+
+power:  atom (POW factor)*
+
+factor: (PLUS|MINUS) factor < this grabs unary number
+        :power
+
+term : (factor (MUL | DIV) factor)* < */ symbols takes priority
+
+expr: (term (PLUS | MINUS) term)* < +- comes next
+
+2 ^3 
+(2 ^3)
+
+-2 ^ 3
+(-2 ^ 3)
+
+-2 + 3 ^ 5 * ( 4-5)
+-2 + (3 ^5) * (4-5)
+
+-2 + (3 ^ 5 * 4- 5)
+
+-2 + (((3 ^5) * 4)-5)

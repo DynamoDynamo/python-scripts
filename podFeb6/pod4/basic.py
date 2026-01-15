@@ -21,6 +21,7 @@ TT_LPAREN = "LPAREN"
 TT_RPAREN = "RPAREN"
 TT_INT = "INT"
 TT_FLOAT = "FLOAT"
+TT_POW = "POW"
 TT_EOF = "EOF"
 DIGITS = "0123456789"
 DOT = "."
@@ -149,6 +150,9 @@ class Lexer:
             elif self.currentChar == '/':
                 tokens.append(Tokens(TT_DIV, pos_start=self.position.copy()))
                 self.advance()
+            elif self.currentChar == '^':
+                tokens.append(Tokens(TT_POW, pos_start=self.position.copy()))
+                self.advance()
             elif self.currentChar == '(':
                 tokens.append(Tokens(TT_LPAREN, pos_start=self.position.copy()))
                 self.advance()
@@ -262,21 +266,14 @@ class Parser:
         self.currentToken = self.tokens[self.index] if self.index < len(self.tokens) else None
         return self.currentToken
     
-    def factor(self):
+    def atom(self):
         token = self.currentToken
         parseResult = ParseResult()
         if token.tokenType in (TT_INT, TT_FLOAT):
             #advance and return number node obj
             parseResult.register(self.advance())
             return parseResult.success(NumberNode(token))
-        if token.tokenType in (TT_PLUS, TT_MINUS):
-            #if tokentype is + or - in factor, upcoming expression in unarycode
-            parseResult.register(self.advance())
-            factor = parseResult.register(self.factor())
-            if parseResult.err:
-                return parseResult
-            return parseResult.success(UnaryNode(token, factor))
-        if token.tokenType == TT_LPAREN:
+        elif token.tokenType == TT_LPAREN:
             #if tokentype is left paranthesis, get expression after, check if there is rParen, if not return err
             parseResult.register(self.advance())
             expr = parseResult.register(self.expression())
@@ -288,6 +285,21 @@ class Parser:
             return parseResult.failure(InvalidSyntaxErr("required ) right paren", self.currentToken.pos_start, self.currentToken.pos_end))
         return parseResult.failure(InvalidCharErr("required int or float", token.pos_start, token.pos_end))
 
+    def power(self):
+        return self.binaryOperation(self.atom, (TT_POW, ), self.factor)
+    
+    def factor(self):
+        token = self.currentToken
+        parseResult = ParseResult()
+        if token.tokenType in (TT_PLUS, TT_MINUS):
+            #if tokentype is + or - in factor, upcoming expression in unarycode
+            parseResult.register(self.advance())
+            factor = parseResult.register(self.factor())
+            if parseResult.err:
+                return parseResult
+            return parseResult.success(UnaryNode(token, factor))
+        return self.power()
+
 
     def expression(self):
         return self.binaryOperation(self.term, (TT_PLUS, TT_MINUS))
@@ -295,15 +307,18 @@ class Parser:
     def term(self):
         return self.binaryOperation(self.factor, (TT_MUL, TT_DIV))
     
-    def binaryOperation(self, func, op_tokens):
+    def binaryOperation(self, func_a, op_tokens, func_b = None):
+
+        if func_b == None:
+            func_b = func_a
         parseResult = ParseResult()
-        left = parseResult.register(func())
+        left = parseResult.register(func_a())
         if parseResult.err:
             return parseResult
         while(self.currentToken.tokenType in op_tokens):
             op_tok = self.currentToken
             parseResult.register(self.advance())
-            right = parseResult.register(func())
+            right = parseResult.register(func_b())
             if parseResult.err:
                 return parseResult
             left = BinaryNode(left, op_tok, right)
@@ -377,6 +392,11 @@ class Number:
             if otherNumber.value == 0:
                 return None, RTErr("divided by zero not possible", otherNumber.pos_start, otherNumber.pos_end, self.context)
             return Number(self.value / otherNumber.value).set_context(self.context), None
+        
+    # in python power operator is represented by **
+    def powerd_by(self, otherNumber):
+        if isinstance(otherNumber, Number):
+            return Number(self.value ** otherNumber.value).set_context(self.context), None
     
     def __repr__(self):
         return str(self.value)
@@ -431,6 +451,8 @@ class Interpreter:
             binOpResult, error = leftNumber.multed_to(rightNumber)
         elif op_token_type == TT_DIV:
             binOpResult, error = leftNumber.divided_by(rightNumber)
+        elif op_token_type == TT_POW:
+            binOpResult, error = leftNumber.powerd_by(rightNumber)
 
         if error:
             return rtResult.failure(error)
