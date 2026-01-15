@@ -5,6 +5,7 @@ from strings_with_arrows import *
 # TASK: give syntax to tokens and arrange them to nodes
 # TASK: calcuate nodes
 # TASK: add divided by zero Err
+# TASK: context
 
 
 ###########
@@ -95,21 +96,26 @@ class InvalidSyntaxErr(Error):
         super().__init__("InvalidSyntaxErr", errDetails, pos_start, pos_end)
 
 class RTErr(Error):
-    def __init__(self, errDetails, pos_start, pos_end):
+    def __init__(self, errDetails, pos_start, pos_end, context):
         super().__init__("RTErr", errDetails, pos_start, pos_end)
+        self.context = context
 
-# class RTErr(Error):
-#     def __init__(self, errDetails, pos_start, pos_end):
-#         self.errDetails = errDetails
-#         self.pos_start = pos_start
-#         self.pos_end = pos_end
+    def __repr__(self):
+        errMsg = self.generate_traceback()
+        errMsg += f'{self.errName}: {self.errDetails}\n'
+        errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+        return errMsg
+    
+    def generate_traceback(self):
+        result = ''
+        pos = self.pos_start
+        ctx = self.context
 
-#     def __repr__(self):
-#         errMsg = f'{self.errName}: {self.errDetails}\n'
-#         errMsg += f'File: {self.pos_start.fn}, Line {self.pos_start.ln + 1}\n'
-#         errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
-#         return errMsg
-
+        while ctx:
+            result += f'File: {pos.fn}, Line {pos.ln + 1}, in {ctx.display_name}\n'
+            pos = ctx.parent_entry_pos
+            ctx = ctx.parent
+        return 'Traceback (most recent call last):\n' + result
 ###########
 #LEXER
 ###########
@@ -343,33 +349,47 @@ class Number:
     def __init__(self, tokenValue):
         self.value = tokenValue
         self.set_pos()
+        self.set_context()
 
     def set_pos(self, pos_start = None, pos_end = None):
         self.pos_start = pos_start
         self.pos_end = pos_end
         return self
+    
+    def set_context(self, context = None):
+        self.context = context
+        return self
 
     def added_to(self, otherNumber):
         if isinstance(otherNumber, Number):
-            return Number(self.value + otherNumber.value), None
+            return Number(self.value + otherNumber.value).set_context(self.context), None
 
     def subbed_by(self, otherNumber):
         if isinstance(otherNumber, Number):
-            return Number(self.value - otherNumber.value), None
+            return Number(self.value - otherNumber.value).set_context(self.context), None
 
     def multed_to(self, otherNumber):
         if isinstance(otherNumber, Number):
-            return Number(self.value * otherNumber.value), None
+            return Number(self.value * otherNumber.value).set_context(self.context), None
 
     def divided_by(self, otherNumber):
         if isinstance(otherNumber, Number):
             if otherNumber.value == 0:
-                return None, RTErr("divided by zero not possible", otherNumber.pos_start, otherNumber.pos_end)
-            return Number(self.value / otherNumber.value), None
+                return None, RTErr("divided by zero not possible", otherNumber.pos_start, otherNumber.pos_end, self.context)
+            return Number(self.value / otherNumber.value).set_context(self.context), None
     
     def __repr__(self):
         return str(self.value)
 
+###########
+#CONTEXT
+###########
+
+class Context:
+    def __init__(self, display_name, parent=None, parent_entry_pos = None):
+        self.display_name = display_name
+        self.parent = parent
+        self.parent_entry_pos = parent_entry_pos
     
 ###########
 #INTERPRETER
@@ -377,25 +397,26 @@ class Number:
 
 class Interpreter:
 
-    def visit(self, node):
+    def visit(self, node, context):
         self.node = node
         typeOfNode = type(node).__name__
         method_name = f'visit_{typeOfNode}'
         method = getattr(self, method_name, self.no_visit_method)
-        return method(node)
+        return method(node, context)
 
-    def visit_NumberNode(self, numberNode):
+    def visit_NumberNode(self, numberNode, context):
         #make the value from numbeNode into numberclass
         return RTResult().success(
             Number(numberNode.token.tokenValue)
-            .set_pos(numberNode.pos_start, numberNode.pos_end))
+            .set_pos(numberNode.pos_start, numberNode.pos_end)
+            .set_context(context))
 
-    def visit_BinaryNode(self, binaryNode):
+    def visit_BinaryNode(self, binaryNode, context):
         rtResult = RTResult()
-        leftNumber = rtResult.register(self.visit(binaryNode.leftNode))
+        leftNumber = rtResult.register(self.visit(binaryNode.leftNode, context))
         if rtResult.error:
             return rtResult
-        rightNumber = rtResult.register(self.visit(binaryNode.rightNode))
+        rightNumber = rtResult.register(self.visit(binaryNode.rightNode, context))
         if rtResult.error:
             return rtResult
         op_token_type = binaryNode.op_token.tokenType
@@ -417,10 +438,10 @@ class Interpreter:
             binOpResult.set_pos(binaryNode.pos_start, binaryNode.pos_end))
         
 
-    def visit_UnaryNode(self, unaryNode):
+    def visit_UnaryNode(self, unaryNode, context):
         rtResult = RTResult()
         op_token_type = unaryNode.op_token.tokenType
-        rightNumber = rtResult.register(self.visit(unaryNode.rightNode))
+        rightNumber = rtResult.register(self.visit(unaryNode.rightNode, context))
         if rtResult.error:
             return rtResult
 
@@ -432,7 +453,7 @@ class Interpreter:
         return rtResult.success(
             rightNumber.set_pos(unaryNode.pos_start, unaryNode.pos_end))
 
-    def no_visit_method(self, node):
+    def no_visit_method(self, node, context):
         raise Exception(f'No visit_{type(node).__name__} is defined')
 
 
@@ -459,6 +480,7 @@ def run(fn, ftxt):
     #calculate, if error, return context
     print(ast.node)
     interpreter = Interpreter()
-    result = interpreter.visit(ast.node)
+    context = Context('<program>')
+    result = interpreter.visit(ast.node, context)
 
     return result.value, result.error
