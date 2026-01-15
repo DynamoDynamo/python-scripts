@@ -3,7 +3,8 @@ from strings_with_arrows import *
 
 # TASK: tokenize userInput
 # TASK: give syntax to tokens and arrange them to nodes
-# TASK: calcuate nodes, if err, return context
+# TASK: calcuate nodes
+# TASK: add divided by zero Err
 
 
 ###########
@@ -93,6 +94,22 @@ class InvalidSyntaxErr(Error):
     def __init__(self, errDetails, pos_start, pos_end):
         super().__init__("InvalidSyntaxErr", errDetails, pos_start, pos_end)
 
+class RTErr(Error):
+    def __init__(self, errDetails, pos_start, pos_end):
+        super().__init__("RTErr", errDetails, pos_start, pos_end)
+
+# class RTErr(Error):
+#     def __init__(self, errDetails, pos_start, pos_end):
+#         self.errDetails = errDetails
+#         self.pos_start = pos_start
+#         self.pos_end = pos_end
+
+#     def __repr__(self):
+#         errMsg = f'{self.errName}: {self.errDetails}\n'
+#         errMsg += f'File: {self.pos_start.fn}, Line {self.pos_start.ln + 1}\n'
+#         errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+#         return errMsg
+
 ###########
 #LEXER
 ###########
@@ -168,6 +185,9 @@ class Lexer:
 class NumberNode:
     def __init__(self, token):
         self.token = token
+
+        self.pos_start = token.pos_start
+        self.pos_end = token.pos_end
     def __repr__(self):
         return f'{self.token}'
 
@@ -177,6 +197,9 @@ class BinaryNode:
         self.op_token = op_token
         self.rightNode = rightNode
 
+        self.pos_start = self.leftNode.pos_start
+        self.pos_end = self.rightNode.pos_end
+
     def __repr__(self):
         return f'({self.leftNode},{self.op_token},{self.rightNode})'
 
@@ -184,6 +207,9 @@ class UnaryNode:
     def __init__(self, op_token, rightNode):
         self.op_token = op_token
         self.rightNode = rightNode
+
+        self.pos_start = op_token.pos_start
+        self.pos_end = rightNode.pos_end
 
     def __repr__(self):
         return f'({self.op_token}, {self.rightNode})'
@@ -284,6 +310,130 @@ class Parser:
                 InvalidSyntaxErr("required + - * /", self.currentToken.pos_start, self.currentToken.pos_end)
             )
         return parsedResult
+    
+###########
+#RTResult:
+###########
+
+class RTResult:
+    def __init__(self):
+        self.value = None
+        self.error = None
+
+#whatever that comes here is of instance Number, so instancecheck is not required, we r return value
+    def register(self, res):
+        if res.error:
+            self.error = res.error
+        return res.value
+
+    def success(self, value):
+        self.value = value
+        return self
+    
+    def failure(self, error):
+        self.error = error
+        return self
+    
+###########
+#VALUES
+###########
+
+class Number:
+
+    def __init__(self, tokenValue):
+        self.value = tokenValue
+        self.set_pos()
+
+    def set_pos(self, pos_start = None, pos_end = None):
+        self.pos_start = pos_start
+        self.pos_end = pos_end
+        return self
+
+    def added_to(self, otherNumber):
+        if isinstance(otherNumber, Number):
+            return Number(self.value + otherNumber.value), None
+
+    def subbed_by(self, otherNumber):
+        if isinstance(otherNumber, Number):
+            return Number(self.value - otherNumber.value), None
+
+    def multed_to(self, otherNumber):
+        if isinstance(otherNumber, Number):
+            return Number(self.value * otherNumber.value), None
+
+    def divided_by(self, otherNumber):
+        if isinstance(otherNumber, Number):
+            if otherNumber.value == 0:
+                return None, RTErr("divided by zero not possible", otherNumber.pos_start, otherNumber.pos_end)
+            return Number(self.value / otherNumber.value), None
+    
+    def __repr__(self):
+        return str(self.value)
+
+    
+###########
+#INTERPRETER
+###########
+
+class Interpreter:
+
+    def visit(self, node):
+        self.node = node
+        typeOfNode = type(node).__name__
+        method_name = f'visit_{typeOfNode}'
+        method = getattr(self, method_name, self.no_visit_method)
+        return method(node)
+
+    def visit_NumberNode(self, numberNode):
+        #make the value from numbeNode into numberclass
+        return RTResult().success(
+            Number(numberNode.token.tokenValue)
+            .set_pos(numberNode.pos_start, numberNode.pos_end))
+
+    def visit_BinaryNode(self, binaryNode):
+        rtResult = RTResult()
+        leftNumber = rtResult.register(self.visit(binaryNode.leftNode))
+        if rtResult.error:
+            return rtResult
+        rightNumber = rtResult.register(self.visit(binaryNode.rightNode))
+        if rtResult.error:
+            return rtResult
+        op_token_type = binaryNode.op_token.tokenType
+
+        binOpResult = Number(0)
+
+        if op_token_type == TT_PLUS:
+            binOpResult, error = leftNumber.added_to(rightNumber)
+        elif op_token_type == TT_MINUS:
+            binOpResult, error = leftNumber.subbed_by(rightNumber)
+        elif op_token_type == TT_MUL:
+            binOpResult, error = leftNumber.multed_to(rightNumber)
+        elif op_token_type == TT_DIV:
+            binOpResult, error = leftNumber.divided_by(rightNumber)
+
+        if error:
+            return rtResult.failure(error)
+        return rtResult.success(
+            binOpResult.set_pos(binaryNode.pos_start, binaryNode.pos_end))
+        
+
+    def visit_UnaryNode(self, unaryNode):
+        rtResult = RTResult()
+        op_token_type = unaryNode.op_token.tokenType
+        rightNumber = rtResult.register(self.visit(unaryNode.rightNode))
+        if rtResult.error:
+            return rtResult
+
+        if op_token_type == TT_MINUS:
+            rightNumber, error = rightNumber.multed_to(Number(-1))
+
+        if error:
+            return rtResult.failure(error)
+        return rtResult.success(
+            rightNumber.set_pos(unaryNode.pos_start, unaryNode.pos_end))
+
+    def no_visit_method(self, node):
+        raise Exception(f'No visit_{type(node).__name__} is defined')
 
 
 ###########
@@ -308,5 +458,7 @@ def run(fn, ftxt):
     
     #calculate, if error, return context
     print(ast.node)
+    interpreter = Interpreter()
+    result = interpreter.visit(ast.node)
 
-    return ast.node, ast.err
+    return result.value, result.error
