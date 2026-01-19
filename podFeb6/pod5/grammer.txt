@@ -2,6 +2,19 @@ factor : INT|FLOAT
        : (expression)
        : -+(factor)
 
+
+power  : numer (^ number)*
+
 term : factor (*/ factor)*
 
 expression : term (+- term)
+
+power - 3^5 < (3 * 3 * 3 * 3 * 3)
+
+3 +  3^5 * 5
+
+3    3^5   5
+
+3 + ( 3^5) * 5
+3 + ((3^5) * 5)
+

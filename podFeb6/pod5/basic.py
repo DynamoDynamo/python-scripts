@@ -21,6 +21,7 @@ TT_MINUS = 'MINUS'
 TT_EOF = 'EOF'
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
+TT_POW = 'POW'
 DOT = '.'
 DIGITS = '0123456789'
 
@@ -161,6 +162,9 @@ class Lexer:
             elif self.currentChar == ')':
                 tokens.append(Token(TT_RPAREN, pos_start=self.position.copy()))
                 self.advance()
+            elif self.currentChar == '^':
+                tokens.append(Token(TT_POW, pos_start=self.position.copy()))
+                self.advance()
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumuberTokens())
             else:
@@ -298,8 +302,11 @@ class Parser:
         else:
             return parseResult.failure(InvalidCharError("Int or float number is missing", currentToken.pos_start, currentToken.pos_end))
         
+    def power(self):
+        return self.binOp(self.factor, (TT_POW))
+        
     def term(self):
-        return self.binOp(self.factor, (TT_DIV, TT_MUL))
+        return self.binOp(self.power, (TT_DIV, TT_MUL))
     
     def expression(self):
         return self.binOp(self.term, (TT_PLUS, TT_MINUS))
@@ -364,6 +371,10 @@ class PNumber:
             if other.value == 0:
                 return None, RTError("Division by zero", other.pos_start, other.pos_end, self.context)
             return PNumber(self.value / other.value).setContext(self.context), None
+        
+    def powered_by(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.value ** other.value).setContext(self.context), None
 
     def __repr__(self):
         return f'{self.value}'
@@ -440,6 +451,9 @@ class Interpreter:
         elif op_token_type == TT_DIV:
             #div
             result, error = leftNumber.divided_by(rightNumber)
+        elif op_token_type == TT_POW:
+            #pow
+            result, error = leftNumber.powered_by(rightNumber)
 
         if error:
             return iResult.failure(error)
@@ -493,7 +507,7 @@ def run(userInput, fileName):
     parser = Parser(tokens)
     print(tokens)
 
-    #create AST Abstract Syntax Tokens
+    # create AST Abstract Syntax Tokens
     ast = parser.parse()
 
     if ast.error:
