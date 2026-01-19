@@ -6,6 +6,7 @@ from strings_with_arrows import *
 # TASK: segregate tokens into nodes for execution
 # TASK: calculate 
 # TASK: add division error
+# TASK: add context
 
 #############
 #TOKENS
@@ -95,8 +96,27 @@ class InvalidSyntaxError(Error):
         super().__init__("InvalidSyntaxError", errDetails, pos_start, pos_end)
 
 class RTError(Error):
-    def __init__(self, errDetails, pos_start, pos_end):
+    def __init__(self, errDetails, pos_start, pos_end, context):
         super().__init__("RTError", errDetails, pos_start, pos_end)
+        self.context = context
+
+    def __repr__(self):
+        errMsg = self.generate_traceback()
+        errMsg += f'{self.errorName}:{self.errDetails}\n'
+        errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+        return errMsg
+    
+    def generate_traceback(self):
+        traceBack = ''
+        pos = self.pos_start
+        ctx = self.context
+
+        while ctx:
+            traceBack += f'File {pos.fn}, Line {pos.ln + 1}, in {ctx.display_name}\n'
+            pos = ctx.parent_entry_pos
+            ctx = ctx.parent
+
+        return 'Traceback (most recent calls):\n' + traceBack
 
 
 ###########
@@ -314,32 +334,36 @@ class PNumber:
 
     def __init__(self, number):
         self.value = number
+        self.setContext()
 
     def setPos(self, pos_start, pos_end):
         self.pos_start = pos_start
         self.pos_end = pos_end
 
         return self
+    
+    #the new calculated numbers are given context
+    def setContext(self, context = None):
+        self.context = context
+        return self
 
     def added_to(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.value + other.value), None
+            return PNumber(self.value + other.value).setContext(self.context), None
     
     def subbed_by(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.value - other.value), None
+            return PNumber(self.value - other.value).setContext(self.context), None
 
     def multed_to(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.value * other.value), None
+            return PNumber(self.value * other.value).setContext(self.context), None
 
     def divided_by(self, other):
         if isinstance(other, PNumber):
-            print(other.pos_start)
-            print(self.pos_start)
             if other.value == 0:
-                return None, RTError("Division by zero", other.pos_start, other.pos_end)
-            return PNumber(self.value / other.value), None
+                return None, RTError("Division by zero", other.pos_start, other.pos_end, self.context)
+            return PNumber(self.value / other.value).setContext(self.context), None
 
     def __repr__(self):
         return f'{self.value}'
@@ -372,29 +396,32 @@ class InterpreterResult:
 ##########
 
 class Interpreter:
-    def visit(self, node):
+    def visit(self, node, context):
         typeOfNode = type(node).__name__ #this will give the class of obj
         methodName = getattr(self, f'visit_{typeOfNode}', self.visit_ErrNode)
-        return methodName(node)
+        return methodName(node, context)
     
-    def visit_ErrNode(self, node):
+    def visit_ErrNode(self, node, context):
         raise Exception(f'visit_{type(node).__name__ } is defined')
 
-    def visit_NumberNode(self, node):
+    def visit_NumberNode(self, node, context):
+        #each number is given context
         numberNode = node.numberNode
         return InterpreterResult().success(
             PNumber(numberNode.tokenValue)
-            .setPos(node.pos_start, node.pos_end))
+            .setPos(node.pos_start, node.pos_end)
+            .setContext(context)
+            )
 
 
-    def visit_BinaryNode(self, node):
+    def visit_BinaryNode(self, node, context):
         iResult = InterpreterResult()
         rightNode = node.rightNode
-        rightNumber = iResult.register(self.visit(rightNode))
+        rightNumber = iResult.register(self.visit(rightNode, context))
         if iResult.error:
             return iResult
         leftNode = node.leftNode
-        leftNumber = iResult.register(self.visit(leftNode))
+        leftNumber = iResult.register(self.visit(leftNode, context))
         if iResult.error:
             return iResult
         op_token_type = node.op_token.tokenType
@@ -420,10 +447,10 @@ class Interpreter:
             result.setPos(node.pos_start, node.pos_end)
             )
 
-    def visit_UnaryNode(self, node):
+    def visit_UnaryNode(self, node, context):
         iResult = InterpreterResult()
         rightNode = node.rightNode
-        rightNumber = iResult.register(self.visit(rightNode))
+        rightNumber = iResult.register(self.visit(rightNode, context))
         if iResult.error:
             return iResult
         op_token_type = node.op_token.tokenType
@@ -435,6 +462,16 @@ class Interpreter:
         return iResult.success(
             rightNumber.setPos(node.pos_start, node.pos_end)
             )
+    
+###########
+#CONTEXT
+###########
+
+class Context:
+    def __init__(self, display_name, parent = None, parent_entry_pos = None):
+        self.display_name = display_name
+        self.parent = parent
+        self.parent_entry_pos = parent_entry_pos
         
 ##########
 #RUN
@@ -466,8 +503,13 @@ def run(userInput, fileName):
     interpreter = Interpreter()
     print(ast.node)
 
+    #create context
+    context = Context('<programe>')
+
     #calcualate result
-    iResult = interpreter.visit(ast.node)
+    iResult = interpreter.visit(ast.node, context)
+
+    
 
     return iResult.result, iResult.error
 
