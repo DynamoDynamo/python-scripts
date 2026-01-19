@@ -291,6 +291,87 @@ class Parser:
         if self.currentToken.tokenType != TT_EOF and not parseResult.error:
             return parseResult.failure(InvalidSyntaxError("+ or - or / or * is missing", self.currentToken.pos_start, self.currentToken.pos_end))
         return parseResult
+    
+##########
+#NUMBER
+##########
+
+class PNumber:
+
+    def __init__(self, number):
+        self.value = number
+
+    def added_to(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.value + other.value)
+    
+    def subbed_by(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.value - other.value)
+
+    def multed_to(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.value * other.value)
+
+    def divided_by(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.value / other.value)
+
+    def __repr__(self):
+        return f'{self.value}'
+    
+##########
+#INTERPRETER
+##########
+
+class Interpreter:
+    def visit(self, node):
+        typeOfNode = type(node).__name__ #this will give the class of obj
+        methodName = getattr(self, f'visit_{typeOfNode}', self.visit_ErrNode)
+        return methodName(node)
+    
+    def visit_ErrNode(self, node):
+        raise Exception(f'visit_{type(node).__name__ } is defined')
+
+    def visit_NumberNode(self, node):
+        numberNode = node.numberNode
+        return PNumber(numberNode.tokenValue)
+
+
+    def visit_BinaryNode(self, node):
+        rightNode = node.rightNode
+        rightNumber = self.visit(rightNode)
+        leftNode = node.leftNode
+        leftNumber = self.visit(leftNode)
+        op_token_type = node.op_token.tokenType
+        result = None
+
+        if op_token_type == TT_PLUS:
+            #add
+            result = rightNumber.added_to(leftNumber)
+
+        elif op_token_type == TT_MINUS:
+            #sub
+            result = rightNumber.subbed_by(leftNumber)
+
+        elif op_token_type == TT_MUL:
+            #mul
+            result = rightNumber.multed_to(leftNumber)
+        elif op_token_type == TT_DIV:
+            #div
+            result = rightNumber.divided_by(leftNumber)
+
+        print(f'{result} in binary node')
+        return result
+
+    def visit_UnaryNode(self, node):
+        rightNode = node.rightNode
+        rightNumber = self.visit(rightNode)
+        op_token_type = node.op_token.tokenType
+
+        if op_token_type == TT_MINUS:
+            rightNumber = rightNumber.multed_to(PNumber(-1))
+        return rightNumber
         
 ##########
 #RUN
@@ -313,6 +394,13 @@ def run(userInput, fileName):
 
     #create AST Abstract Syntax Tokens
     ast = parser.parse()
+
+    #create Interpreter instance
+    interpreter = Interpreter()
+
+    #calcualate result
+    number = interpreter.visit(ast.node)
+    print(number)
 
     return ast.node, ast.error
 
