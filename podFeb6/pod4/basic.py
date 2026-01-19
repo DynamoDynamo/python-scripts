@@ -83,6 +83,8 @@ class Error:
         self.pos_end = pos_end
 
     def __repr__(self):
+        print(self.pos_start)
+        print(self.pos_end)
         errMsg = f'{self.errName}: {self.errDetails}\n'
         errMsg += f'File: {self.pos_start.fn}, Line {self.pos_start.ln + 1}\n'
         errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)

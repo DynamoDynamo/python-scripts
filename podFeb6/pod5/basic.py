@@ -3,6 +3,7 @@ from strings_with_arrows import *
 
 # TASK: tokenize userinput
 # TASK: add position to error
+# TASK: segregate tokens into nodes for execution
 
 #############
 #TOKENS
@@ -25,7 +26,8 @@ class Token:
         self.tokenType = type
         self.tokenValue = value
         self.pos_start =  pos_start.copy()
-        self.pos_end = self.pos_start.advance()
+        self.pos_end = pos_start.copy()
+        self.pos_end = self.pos_end.advance()
 
         if pos_end:
             self.pos_end = pos_end
@@ -56,6 +58,9 @@ class Position:
             self.col = 0 
             self.ln += 1
         return self
+    
+    def __repr__(self):
+        return f'{self.ln}:{self.col}:{self.idx}'
 
     def copy(self):
         return Position(self.ln, self.col, self.idx, self.fn, self.ftxt)  
@@ -72,6 +77,8 @@ class Error:
         self.pos_end = pos_end
 
     def __repr__(self):
+        print(self.pos_start)
+        print(self.pos_end)
         errMsg = f'{self.errorName}:{self.errDetails}\n'
         errMsg += f'File{self.pos_start.fn}, Line {self.pos_start.ln + 1}\n'
         errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
@@ -80,6 +87,11 @@ class Error:
 class InvalidCharError(Error):
     def __init__(self, errDetails, pos_start, pos_end):
         super().__init__("InvalidCharError", errDetails, pos_start, pos_end)
+
+class InvalidSyntaxError(Error):
+    def __init__(self, errDetails, pos_start, pos_end):
+        super().__init__("InvalidSyntaxError", errDetails, pos_start, pos_end)
+
 
 ###########
 #LEXER
@@ -130,8 +142,8 @@ class Lexer:
                 start_pos = self.position.copy()
                 currentChar = self.currentChar
                 self.advance()
-                return None, InvalidCharError("'"+currentChar+"'", start_pos, self.position)
-        tokens.append(TT_EOF, pos_start=self.position.copy())
+                return None, InvalidCharError("'"+ currentChar +"'", start_pos, self.position)
+        tokens.append(Token(TT_EOF, pos_start=self.position.copy()))
         return tokens, None
 
 
@@ -153,6 +165,133 @@ class Lexer:
         else:
             return Token(TT_INT, int(num_str), pos_start=start_pos, pos_end=self.position)
         
+###########
+#NODES
+###########
+
+class NumberNode:
+    def __init__(self, token):
+        self.numberNode = token
+        
+    def __repr__(self):
+        return f'{self.numberNode}'
+    
+class BinaryNode:
+    def __init__(self, leftNode, op_token, rightNode):
+        self.leftNode = leftNode
+        self.op_token = op_token
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.leftNode},{self.op_token},{self.rightNode})'
+    
+class UnaryNode:
+    def __init__(self, op_token, rightNode):
+        self.op_token = op_token
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.op_token}, {self.rightNode})'
+    
+##############..
+#PARSERESULT
+##############
+
+class ParseResult:
+    def __init__(self):
+        self.node = None
+        self.error = None
+
+#returns node, assigns the -ve side, and returns the +ve side
+    def register(self, response):
+        if isinstance(response, ParseResult):
+            #check if err and assign it
+            if response.error:
+                self.error = response.error
+            return response.node
+        return response
+    
+    def success(self, node):
+        self.node = node
+        return self
+    
+    def failure(self, error):
+        self.error = error
+        return self
+
+    
+###########
+#PARSER
+###########
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.tokenIdx = -1
+        self.currentToken = None
+        self.advance()
+
+    def advance(self):
+        #advance
+        self.tokenIdx += 1
+        #assignCurrent token
+        self.currentToken = self.tokens[self.tokenIdx] if self.tokenIdx < len(self.tokens) else None
+        return self.currentToken
+
+    def factor(self):
+        parseResult = ParseResult()
+        currentToken = self.currentToken
+
+        if currentToken.tokenType in (TT_INT, TT_FLOAT):
+            parseResult.register(self.advance())
+            return NumberNode(currentToken)
+        elif currentToken.tokenType in (TT_PLUS, TT_MINUS):
+            parseResult.register(self.advance())
+            factor = parseResult.register(self.factor())
+            if parseResult.error:
+                return parseResult
+            return parseResult.success(UnaryNode(currentToken, factor))
+        elif currentToken.tokenType == TT_LPAREN:
+            parseResult.register(self.advance())
+            expr = parseResult.register(self.expression())
+            if parseResult.error:
+                return parseResult
+            if self.currentToken.tokenType == TT_RPAREN:
+                parseResult.register(self.advance())
+                return parseResult.success(expr)
+            else:
+                return parseResult.failure(InvalidCharError("')' right paran is missing", currentToken.pos_start, self.currentToken.pos_end))
+        else:
+            return parseResult.failure(InvalidCharError("Int or float number is missing", currentToken.pos_start, currentToken.pos_end))
+        
+    def term(self):
+        return self.binOp(self.factor, (TT_DIV, TT_MUL))
+    
+    def expression(self):
+        return self.binOp(self.term, (TT_PLUS, TT_MINUS))
+
+    def binOp(self, func, opTokens):
+        parseResult = ParseResult()
+        left = parseResult.register(func())
+        if parseResult.error:
+            return parseResult
+
+        while self.currentToken.tokenType in opTokens:
+            op_token = self.currentToken
+            parseResult.register(self.advance())
+            right = parseResult.register(func())
+            if parseResult.error:
+                return parseResult
+            left = BinaryNode(left, op_token, right)
+        return parseResult.success(left)
+    
+    def parse(self):
+        parseResult = self.expression()
+
+        if self.currentToken.tokenType != TT_EOF and not parseResult.error:
+            return parseResult.failure(InvalidSyntaxError("+ or - or / or * is missing", self.currentToken.pos_start, self.currentToken.pos_end))
+        return parseResult
+        
 ##########
 #RUN
 ##########
@@ -164,5 +303,16 @@ def run(userInput, fileName):
     lexer = Lexer(userInput, fileName)
     
     #create tokens
-    return lexer.makeTokens()
+    tokens, error =  lexer.makeTokens()
+
+    if error:
+        return None, error
+    
+    #create Parser instance
+    parser = Parser(tokens)
+
+    #create AST Abstract Syntax Tokens
+    ast = parser.parse()
+
+    return ast.node, ast.error
 

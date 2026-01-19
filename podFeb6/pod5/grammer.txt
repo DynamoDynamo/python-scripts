@@ -1,0 +1,7 @@
+factor : INT|FLOAT
+       : (expression)
+       : -+(factor)
+
+term : factor (*/ factor)*
+
+expression : term (+- term)
