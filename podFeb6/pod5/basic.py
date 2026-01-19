@@ -4,6 +4,8 @@ from strings_with_arrows import *
 # TASK: tokenize userinput
 # TASK: add position to error
 # TASK: segregate tokens into nodes for execution
+# TASK: calculate 
+# TASK: add division error
 
 #############
 #TOKENS
@@ -92,6 +94,10 @@ class InvalidSyntaxError(Error):
     def __init__(self, errDetails, pos_start, pos_end):
         super().__init__("InvalidSyntaxError", errDetails, pos_start, pos_end)
 
+class RTError(Error):
+    def __init__(self, errDetails, pos_start, pos_end):
+        super().__init__("RTError", errDetails, pos_start, pos_end)
+
 
 ###########
 #LEXER
@@ -172,6 +178,8 @@ class Lexer:
 class NumberNode:
     def __init__(self, token):
         self.numberNode = token
+        self.pos_start =  token.pos_start
+        self.pos_end = token.pos_end
         
     def __repr__(self):
         return f'{self.numberNode}'
@@ -182,6 +190,9 @@ class BinaryNode:
         self.op_token = op_token
         self.rightNode = rightNode
 
+        self.pos_start = leftNode.pos_start
+        self.pos_end = rightNode.pos_end
+
     def __repr__(self):
         return f'({self.leftNode},{self.op_token},{self.rightNode})'
     
@@ -189,6 +200,9 @@ class UnaryNode:
     def __init__(self, op_token, rightNode):
         self.op_token = op_token
         self.rightNode = rightNode
+
+        self.pos_start =  op_token.pos_start
+        self.pos_end = rightNode.pos_end
 
     def __repr__(self):
         return f'({self.op_token}, {self.rightNode})'
@@ -301,25 +315,58 @@ class PNumber:
     def __init__(self, number):
         self.value = number
 
+    def setPos(self, pos_start, pos_end):
+        self.pos_start = pos_start
+        self.pos_end = pos_end
+
+        return self
+
     def added_to(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.value + other.value)
+            return PNumber(self.value + other.value), None
     
     def subbed_by(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.value - other.value)
+            return PNumber(self.value - other.value), None
 
     def multed_to(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.value * other.value)
+            return PNumber(self.value * other.value), None
 
     def divided_by(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.value / other.value)
+            print(other.pos_start)
+            print(self.pos_start)
+            if other.value == 0:
+                return None, RTError("Division by zero", other.pos_start, other.pos_end)
+            return PNumber(self.value / other.value), None
 
     def __repr__(self):
         return f'{self.value}'
     
+##########
+#IRESULT
+##########
+
+class InterpreterResult:
+
+    def __init__(self):
+        self.result = None
+        self.error = None
+
+    def register(self, response):
+        if response.error:
+            self.error = response.error
+        return response.result
+    
+    def success(self, pNumber):
+        self.result  = pNumber
+        return self
+
+    def failure(self, error):
+        self.error = error
+        return self
+
 ##########
 #INTERPRETER
 ##########
@@ -335,43 +382,59 @@ class Interpreter:
 
     def visit_NumberNode(self, node):
         numberNode = node.numberNode
-        return PNumber(numberNode.tokenValue)
+        return InterpreterResult().success(
+            PNumber(numberNode.tokenValue)
+            .setPos(node.pos_start, node.pos_end))
 
 
     def visit_BinaryNode(self, node):
+        iResult = InterpreterResult()
         rightNode = node.rightNode
-        rightNumber = self.visit(rightNode)
+        rightNumber = iResult.register(self.visit(rightNode))
+        if iResult.error:
+            return iResult
         leftNode = node.leftNode
-        leftNumber = self.visit(leftNode)
+        leftNumber = iResult.register(self.visit(leftNode))
+        if iResult.error:
+            return iResult
         op_token_type = node.op_token.tokenType
-        result = None
 
         if op_token_type == TT_PLUS:
             #add
-            result = rightNumber.added_to(leftNumber)
+            result, error = leftNumber.added_to(rightNumber)
 
         elif op_token_type == TT_MINUS:
             #sub
-            result = rightNumber.subbed_by(leftNumber)
+            result, error = leftNumber.subbed_by(rightNumber)
 
         elif op_token_type == TT_MUL:
             #mul
-            result = rightNumber.multed_to(leftNumber)
+            result, error = leftNumber.multed_to(rightNumber)
         elif op_token_type == TT_DIV:
             #div
-            result = rightNumber.divided_by(leftNumber)
+            result, error = leftNumber.divided_by(rightNumber)
 
-        print(f'{result} in binary node')
-        return result
+        if error:
+            return iResult.failure(error)
+        return iResult.success(
+            result.setPos(node.pos_start, node.pos_end)
+            )
 
     def visit_UnaryNode(self, node):
+        iResult = InterpreterResult()
         rightNode = node.rightNode
-        rightNumber = self.visit(rightNode)
+        rightNumber = iResult.register(self.visit(rightNode))
+        if iResult.error:
+            return iResult
         op_token_type = node.op_token.tokenType
 
         if op_token_type == TT_MINUS:
-            rightNumber = rightNumber.multed_to(PNumber(-1))
-        return rightNumber
+            rightNumber, error = rightNumber.multed_to(PNumber(-1))
+        if error:
+            return iResult.failure(error)
+        return iResult.success(
+            rightNumber.setPos(node.pos_start, node.pos_end)
+            )
         
 ##########
 #RUN
@@ -391,16 +454,20 @@ def run(userInput, fileName):
     
     #create Parser instance
     parser = Parser(tokens)
+    print(tokens)
 
     #create AST Abstract Syntax Tokens
     ast = parser.parse()
 
+    if ast.error:
+        return None, ast.error
+
     #create Interpreter instance
     interpreter = Interpreter()
+    print(ast.node)
 
     #calcualate result
-    number = interpreter.visit(ast.node)
-    print(number)
+    iResult = interpreter.visit(ast.node)
 
-    return ast.node, ast.error
+    return iResult.result, iResult.error
 
