@@ -1,3 +1,23 @@
+
+expr: KEYWORD:VAR IDENTIFIER EQ expr 
+    : term ((PLUS|MINUS)) term)*
+
+term: factor ((MUL | DIV) factor) *
+
+factor: (PLUS|MINUS) factor
+       : power
+
+power: atom (POW factor)*
+
+atom: INT|FLOAT|IDENTIFIER
+    : LPAREN expr RPAREN
+
+
+
+
+
+
+*************************
 factor : INT|FLOAT
        : (expression)
        : -+(factor)
@@ -9,12 +29,13 @@ term : factor (*/ factor)*
 
 expression : term (+- term)
 
-power - 3^5 < (3 * 3 * 3 * 3 * 3)
 
-3 +  3^5 * 5
 
-3    3^5   5
 
-3 + ( 3^5) * 5
-3 + ((3^5) * 5)
+var a = 10
+
+var <var-name> = value
+ ^         ^   
+keyword identifier Equals value
+
 
