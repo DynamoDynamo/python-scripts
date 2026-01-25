@@ -2,6 +2,7 @@ from strings_with_arrows import *
 
 
 #TASK: Tokenize input
+#TASK: Parser - to organize tokens for execution
 
 ###############
 #TOKENS
@@ -16,6 +17,7 @@ TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 TT_FLOAT = "FLOAT"
 DIGITS = "123456789"
+TT_EOF = "EOF"
 DOT = "."
 
 class Tokens:
@@ -121,8 +123,9 @@ class Lexer:
                 pos_start = self.position.copy()
                 currentChar = self.currentChar
                 self.advance()
-                return None, InvalidCharError(f'{currentChar} is invalid', pos_start, self.position)
+                return None, InvalidCharError(f'"{currentChar}"', pos_start, self.position)
         #return result
+        tokens.append(Tokens(TT_EOF))
         return tokens, None
 
     def makeNumberToken(self):
@@ -141,8 +144,81 @@ class Lexer:
             return Tokens(TT_FLOAT, float(num_str))
         return Tokens(TT_INT, int(num_str))
     
+
+###############
+#Node
+###############
+
+class NumberNode:
+    def __init__(self, numToken):
+        self.numToken = numToken
+
+    def __repr__(self):
+        return f'{self.numToken}'
+
+class BinaryNode:
+    def __init__(self, leftNode, op_tok, rightNode):
+        self.leftNode = leftNode
+        self.op_tok = op_tok
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.leftNode},{self.op_tok},{self.rightNode})'
+    
+###############
+#Parser
+###############
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.tokIdx = -1
+        self.currentToken = None
+        self.advance()
+
+    def advance(self):
+        self.tokIdx += 1
+        self.currentToken = self.tokens[self.tokIdx] if self.tokIdx < len(self.tokens) else None
+
+    def atom(self):
+        currentToken = self.currentToken
+
+        if currentToken != None and currentToken.type in (TT_INT, TT_FLOAT):
+            self.advance()
+            return NumberNode(currentToken)
+
+    def term(self):
+        return self.bin_op(self.atom, (TT_MUL, TT_DIV))
+
+
+    def expr(self):
+        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+    
+    def bin_op(self, func, opTokens):
+        left = func()
+        while self.currentToken.type in opTokens:
+            op_token = self.currentToken
+            self.advance()
+            right = func()
+            left  = BinaryNode(left, op_token, right)
+        return left
+
+    def parser(self):
+        return self.expr(), None
+
+###############
+#RUN
+###############
+    
 def run(userInput, fileName):
     #create lexer instance 
     lexer = Lexer(userInput, fileName)
-    return lexer.makeTokens()
+    tokens, error =  lexer.makeTokens()
+    if error:
+        return None, error
+    
+    #create parser instance
+    parser = Parser(tokens)
+    print(f'Tokens: {tokens}')
+    return parser.parser()
 
