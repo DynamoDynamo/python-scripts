@@ -1,3 +1,6 @@
+from strings_with_arrows import *
+
+
 #TASK: Tokenize input
 
 ###############
@@ -29,17 +32,46 @@ class Tokens:
 #ERROR
 ###############
 class Error:
-    def __init__(self, errorName, errDetails):
+    def __init__(self, errorName, errDetails, pos_start, pos_end):
         self.errorName = errorName
         self.errDetails = errDetails
+        self.pos_start = pos_start
+        self.pos_end = pos_end
 
     def __repr__(self):
         errMsg = f'{self.errorName}:{self.errDetails}\n'
+        errMsg += f'File{self.pos_start.fn}, Line{self.pos_start.ln + 1}\n'
+        errMsg += string_with_arrows(self.pos_start.userInput, self.pos_start, self.pos_end)
         return errMsg
     
 class InvalidCharError(Error):
-    def __init__(self, errDetails):
-        super().__init__("InvalidCharError", errDetails)
+    def __init__(self, errDetails, pos_start, pos_end):
+        super().__init__("InvalidCharError", errDetails, pos_start, pos_end)
+
+###############
+#POSITION
+###############
+
+class Position:
+    def __init__(self, userInput, fileName, ln, col, idx):
+        self.userInput = userInput
+        self.fn = fileName
+        self.ln = ln
+        self.col = col
+        self.idx = idx
+
+    def advance(self, currentChar=None):
+        self.idx += 1
+        self.col += 1
+
+        if currentChar == '\n':
+            self.col = 0
+            self.ln += 1
+
+        return self
+    
+    def copy(self):
+        return Position(self.userInput, self.fn, self.ln, self.col, self.idx)
     
 ###############
 #LEXER - makes tokens
@@ -50,12 +82,12 @@ class Lexer:
         self.userInput = userInput
         self.fileName = fileName
         self.currentChar = None
-        self.index = -1
+        self.position = Position(userInput, fileName, 0, -1, -1)
         self.advance()
 
     def advance(self):
-        self.index += 1
-        self.currentChar = self.userInput[self.index] if self.index < len(self.userInput) else None
+        self.position.advance(self.currentChar)
+        self.currentChar = self.userInput[self.position.idx] if self.position.idx < len(self.userInput) else None
 
     def makeTokens(self):
         tokens = []
@@ -86,7 +118,10 @@ class Lexer:
                 tokens.append(self.makeNumberToken())
             else:
                 #return error
-                return None, InvalidCharError(f'{self.currentChar} is invalid')
+                pos_start = self.position.copy()
+                currentChar = self.currentChar
+                self.advance()
+                return None, InvalidCharError(f'{currentChar} is invalid', pos_start, self.position)
         #return result
         return tokens, None
 
