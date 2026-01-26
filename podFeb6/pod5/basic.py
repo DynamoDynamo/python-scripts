@@ -13,6 +13,7 @@ TT_MINUS = "MINUS"
 TT_DIV = "DIV"
 TT_MUL = "MUL"
 TT_INT = "INT"
+TT_POW = "POW"
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 TT_FLOAT = "FLOAT"
@@ -116,6 +117,9 @@ class Lexer:
             elif self.currentChar == ')':
                 tokens.append(Tokens(TT_RPAREN))
                 self.advance()
+            elif self.currentChar == '^':
+                tokens.append(Tokens(TT_POW))
+                self.advance()
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberToken())
             else:
@@ -165,6 +169,14 @@ class BinaryNode:
     def __repr__(self):
         return f'({self.leftNode},{self.op_tok},{self.rightNode})'
     
+class UnaryNode:
+    def __init__(self, op_token, rightNode):
+        self.op_token = op_token
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.op_token}, {self.rightNode})'
+    
 ###############
 #Parser
 ###############
@@ -183,23 +195,40 @@ class Parser:
     def atom(self):
         currentToken = self.currentToken
 
-        if currentToken != None and currentToken.type in (TT_INT, TT_FLOAT):
+        if currentToken.type in (TT_INT, TT_FLOAT):
             self.advance()
             return NumberNode(currentToken)
+        elif currentToken.type in (TT_PLUS, TT_MINUS):
+            self.advance()
+            atom = self.atom()
+            return UnaryNode(currentToken, atom)
+            
+    def paranExpr(self):
+        currentToken = self.currentToken
+        if currentToken.type == TT_LPAREN:
+            self.advance()
+            exprInsideParan = self.expr()
+            if self.currentToken.type == TT_RPAREN:
+                self.advance()
+                return exprInsideParan
+        return self.atom()
+        
+    def pow(self):
+        return self.bin_op(self.paranExpr, (TT_POW)) 
 
     def term(self):
-        return self.bin_op(self.atom, (TT_MUL, TT_DIV))
+        return self.bin_op(self.pow, (TT_MUL, TT_DIV))
 
 
     def expr(self):
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
     
-    def bin_op(self, func, opTokens):
-        left = func()
+    def bin_op(self, funcA, opTokens):
+        left = funcA()
         while self.currentToken.type in opTokens:
             op_token = self.currentToken
             self.advance()
-            right = func()
+            right = funcA()
             left  = BinaryNode(left, op_token, right)
         return left
 
