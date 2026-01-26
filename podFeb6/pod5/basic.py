@@ -3,6 +3,7 @@ from strings_with_arrows import *
 
 #TASK: Tokenize input
 #TASK: Parser - to organize tokens for execution
+#TASK: add Error
 
 ###############
 #TOKENS
@@ -22,9 +23,16 @@ TT_EOF = "EOF"
 DOT = "."
 
 class Tokens:
-    def __init__(self, tokenType, tokenValue = None):
+    def __init__(self, tokenType, tokenValue = None, pos_start = None, pos_end = None):
         self.type = tokenType
         self.value = tokenValue
+        self.pos_start = pos_start.copy()
+        self.pos_end = self.pos_start.copy()
+        self.pos_end.advance()
+
+        if pos_end:
+            self.pos_end = pos_end
+        
 
     def __repr__(self):
         if self.value:
@@ -50,6 +58,10 @@ class Error:
 class InvalidCharError(Error):
     def __init__(self, errDetails, pos_start, pos_end):
         super().__init__("InvalidCharError", errDetails, pos_start, pos_end)
+
+class InvalidsyntaxError(Error):
+    def __init__(self, errDetails, pos_start, pos_end):
+        super().__init__("InvalidsyntaxError", errDetails, pos_start, pos_end)
 
 ###############
 #POSITION
@@ -100,25 +112,25 @@ class Lexer:
             if self.currentChar in ' \t':
                 self.advance()
             elif self.currentChar == '+':
-                tokens.append(Tokens(TT_PLUS))
+                tokens.append(Tokens(TT_PLUS, pos_start = self.position.copy()))
                 self.advance()
             elif self.currentChar == '-':
-                tokens.append(Tokens(TT_MINUS))
+                tokens.append(Tokens(TT_MINUS, pos_start = self.position.copy()))
                 self.advance()
             elif self.currentChar == '*':
-                tokens.append(Tokens(TT_MUL))
+                tokens.append(Tokens(TT_MUL, pos_start = self.position.copy()))
                 self.advance()
             elif self.currentChar == '/':
-                tokens.append(Tokens(TT_DIV))
+                tokens.append(Tokens(TT_DIV, pos_start = self.position.copy()))
                 self.advance()
             elif self.currentChar == '(':
-                tokens.append(Tokens(TT_LPAREN))
+                tokens.append(Tokens(TT_LPAREN, pos_start = self.position.copy()))
                 self.advance()
             elif self.currentChar == ')':
-                tokens.append(Tokens(TT_RPAREN))
+                tokens.append(Tokens(TT_RPAREN, pos_start = self.position.copy()))
                 self.advance()
             elif self.currentChar == '^':
-                tokens.append(Tokens(TT_POW))
+                tokens.append(Tokens(TT_POW, pos_start = self.position.copy()))
                 self.advance()
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberToken())
@@ -129,12 +141,13 @@ class Lexer:
                 self.advance()
                 return None, InvalidCharError(f'"{currentChar}"', pos_start, self.position)
         #return result
-        tokens.append(Tokens(TT_EOF))
+        tokens.append(Tokens(TT_EOF, pos_start=self.position))
         return tokens, None
 
     def makeNumberToken(self):
         num_str = ''
         dot_cout = 0
+        pos_start = self.position.copy()
 
         while self.currentChar != None and self.currentChar in DIGITS + DOT:
             if self.currentChar == DOT:
@@ -145,8 +158,8 @@ class Lexer:
             self.advance()
         
         if dot_cout == 1:
-            return Tokens(TT_FLOAT, float(num_str))
-        return Tokens(TT_INT, int(num_str))
+            return Tokens(TT_FLOAT, float(num_str), pos_start=pos_start, pos_end=self.position)
+        return Tokens(TT_INT, int(num_str), pos_start=pos_start, pos_end=self.position)
     
 
 ###############
@@ -178,6 +191,31 @@ class UnaryNode:
         return f'({self.op_token}, {self.rightNode})'
     
 ###############
+#ParseResult
+###############
+
+class ParseResult:
+
+    def __init__(self):
+        self.node = None
+        self.error = None
+
+    def register(self, resObj):
+        if isinstance(resObj, ParseResult):
+            if resObj.error:
+                self.error = resObj.error
+            return resObj.node
+        return resObj
+
+    def success(self, node):
+        self.node = node
+        return self
+
+    def failure(self, error):
+        self.error = error
+        return self
+    
+###############
 #Parser
 ###############
 
@@ -193,24 +231,34 @@ class Parser:
         self.currentToken = self.tokens[self.tokIdx] if self.tokIdx < len(self.tokens) else None
 
     def atom(self):
+        parseResult = ParseResult()
         currentToken = self.currentToken
 
         if currentToken.type in (TT_INT, TT_FLOAT):
             self.advance()
-            return NumberNode(currentToken)
+            return parseResult.success(NumberNode(currentToken))
         elif currentToken.type in (TT_PLUS, TT_MINUS):
             self.advance()
-            atom = self.atom()
-            return UnaryNode(currentToken, atom)
+            atom = parseResult.register(self.atom())
+            if parseResult.error:
+                return parseResult
+            return parseResult.success(UnaryNode(currentToken, atom))
+        else:
+            return parseResult.failure(InvalidCharError("required int or float or unaryNumber", currentToken.pos_start, currentToken.pos_end))
             
     def paranExpr(self):
+        parseResult = ParseResult()
         currentToken = self.currentToken
         if currentToken.type == TT_LPAREN:
             self.advance()
-            exprInsideParan = self.expr()
+            exprInsideParan = parseResult.register(self.expr())
+            if parseResult.error:
+                return parseResult
             if self.currentToken.type == TT_RPAREN:
                 self.advance()
-                return exprInsideParan
+                return parseResult.success(exprInsideParan)
+            else:
+                return parseResult.failure(InvalidsyntaxError("'(' symbol required", currentToken.pos_start, self.currentToken.pos_end))
         return self.atom()
         
     def pow(self):
@@ -224,16 +272,24 @@ class Parser:
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
     
     def bin_op(self, funcA, opTokens):
-        left = funcA()
+        parseResult = ParseResult()
+        left = parseResult.register(funcA())
+        if parseResult.error:
+            return parseResult
         while self.currentToken.type in opTokens:
             op_token = self.currentToken
             self.advance()
-            right = funcA()
+            right = parseResult.register(funcA())
+            if parseResult.error:
+                return parseResult
             left  = BinaryNode(left, op_token, right)
-        return left
+        return parseResult.success(left)
 
     def parser(self):
-        return self.expr(), None
+        parseResult = self.expr()
+        if self.currentToken != TT_EOF and not parseResult.error:
+            return parseResult.failure(InvalidsyntaxError("math symbol required", self.currentToken.pos_start, self.currentToken.pos_end))
+        return parseResult
 
 ###############
 #RUN
@@ -247,7 +303,9 @@ def run(userInput, fileName):
         return None, error
     
     #create parser instance
-    parser = Parser(tokens)
+    parserObj = Parser(tokens)
     print(f'Tokens: {tokens}')
-    return parser.parser()
+
+    parseResult = parserObj.parser()
+    return parseResult.node, parseResult.error
 
