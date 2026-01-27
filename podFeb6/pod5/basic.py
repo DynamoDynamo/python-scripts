@@ -4,6 +4,7 @@ from strings_with_arrows import *
 #TASK: Tokenize input
 #TASK: Parser - to organize tokens for execution
 #TASK: add Error
+#TASK: Interpreter - calcualte organized tokens
 
 ###############
 #TOKENS
@@ -287,9 +288,85 @@ class Parser:
 
     def parser(self):
         parseResult = self.expr()
-        if self.currentToken != TT_EOF and not parseResult.error:
+        if self.currentToken.type != TT_EOF and not parseResult.error:
             return parseResult.failure(InvalidsyntaxError("math symbol required", self.currentToken.pos_start, self.currentToken.pos_end))
         return parseResult
+    
+###############
+#NUMBER
+###############
+
+class PNumber:
+
+    def __init__(self, number):
+        self.number = number
+
+    def added_to(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.number + other.number)
+        
+    def sub_by(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.number - other.number)
+        
+    def div_by(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.number / other.number)
+    
+    def multed_to(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.number * other.number)
+    
+    def pow_by(self, other):
+        if isinstance(other, PNumber):
+            return PNumber(self.number ** other.number)
+
+###############
+#INTERPRETER
+###############
+
+class Interpreter:
+    
+    def visit(self, node):
+        typeOfNode = type(node).__name__
+        self.methodName = f'visit_{typeOfNode}'
+        method = getattr(self, self.methodName, self.no_visit)
+        return method(node)
+    
+    def no_visit(self, node):
+        raise Exception(f'visit_{type(node).__name__} method is not available')
+    
+    #this method returns PNumber
+    def visit_NumberNode(self, node):
+        return PNumber(node.numToken.value)
+
+    def visit_BinaryNode(self, node):
+        leftNum = self.visit(node.leftNode)
+        rightNum = self.visit(node.rightNode)
+        op_token_type = node.op_tok.type
+
+        if op_token_type == TT_MUL:
+            resultNum = leftNum.multed_to(rightNum)
+        elif op_token_type == TT_DIV:
+            resultNum = leftNum.div_by(rightNum)
+        elif op_token_type == TT_POW:
+            resultNum = leftNum.pow_by(rightNum)
+        elif op_token_type == TT_PLUS:
+            resultNum = leftNum.added_to(rightNum)
+        elif op_token_type == TT_MINUS:
+            resultNum = leftNum.sub_by(rightNum)
+
+        return resultNum
+
+    def visit_UnaryNode(self, node):
+        rightNum = self.visit(node.rightNode)
+        op_tok_type = node.op_token.type
+
+        if op_tok_type == TT_MINUS:
+            rightNum = rightNum.multed_to(PNumber(-1))
+
+        return rightNum
+
 
 ###############
 #RUN
@@ -307,5 +384,12 @@ def run(userInput, fileName):
     print(f'Tokens: {tokens}')
 
     parseResult = parserObj.parser()
-    return parseResult.node, parseResult.error
+    if parseResult.error:
+        return None, parseResult.error
+    
+    #create Interpreter instance
+    print(parseResult.node)
+    interpreter = Interpreter()
+    calcualtedNum = interpreter.visit(parseResult.node)
+    return calcualtedNum.number, None
 
