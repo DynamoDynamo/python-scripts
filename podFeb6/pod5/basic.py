@@ -5,6 +5,7 @@ from strings_with_arrows import *
 #TASK: Parser - to organize tokens for execution
 #TASK: add Error
 #TASK: Interpreter - calcualte organized tokens
+#TASK: Error for div by zero
 
 ###############
 #TOKENS
@@ -19,7 +20,7 @@ TT_POW = "POW"
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 TT_FLOAT = "FLOAT"
-DIGITS = "123456789"
+DIGITS = "0123456789"
 TT_EOF = "EOF"
 DOT = "."
 
@@ -63,6 +64,30 @@ class InvalidCharError(Error):
 class InvalidsyntaxError(Error):
     def __init__(self, errDetails, pos_start, pos_end):
         super().__init__("InvalidsyntaxError", errDetails, pos_start, pos_end)
+
+class RunTimeError(Error):
+    def __init__(self, errDetails, pos_start, pos_end, context):
+        self.context = context
+        super().__init__("RunTimeError", errDetails, pos_start, pos_end)
+
+    def __repr__(self):
+        errMsg = self.generate_traceback()
+        errMsg += f'{self.errorName}:{self.errDetails}\n'
+        errMsg += string_with_arrows(self.pos_start.userInput, self.pos_start, self.pos_end)
+        return errMsg
+    
+    def generate_traceback(self):
+        traceBack = ''
+        pos = self.pos_start
+        ctx = self.context
+
+        while ctx:
+            traceBack += f'File {pos.fn}, Line {pos.ln + 1}, in {ctx.display_name}\n'
+            pos = ctx.parent_entry_pos
+            ctx = ctx.parent
+
+        return 'Traceback (most recent calls):\n' + traceBack
+
 
 ###############
 #POSITION
@@ -170,6 +195,8 @@ class Lexer:
 class NumberNode:
     def __init__(self, numToken):
         self.numToken = numToken
+        self.pos_start = numToken.pos_start
+        self.pos_end = numToken.pos_end
 
     def __repr__(self):
         return f'{self.numToken}'
@@ -179,6 +206,8 @@ class BinaryNode:
         self.leftNode = leftNode
         self.op_tok = op_tok
         self.rightNode = rightNode
+        self.pos_start = leftNode.pos_start
+        self.pos_end = rightNode.pos_end
 
     def __repr__(self):
         return f'({self.leftNode},{self.op_tok},{self.rightNode})'
@@ -187,6 +216,8 @@ class UnaryNode:
     def __init__(self, op_token, rightNode):
         self.op_token = op_token
         self.rightNode = rightNode
+        self.pos_start = op_token.pos_start
+        self.pos_end = rightNode.pos_end
 
     def __repr__(self):
         return f'({self.op_token}, {self.rightNode})'
@@ -291,6 +322,42 @@ class Parser:
         if self.currentToken.type != TT_EOF and not parseResult.error:
             return parseResult.failure(InvalidsyntaxError("math symbol required", self.currentToken.pos_start, self.currentToken.pos_end))
         return parseResult
+
+
+###########
+#CONTEXT
+###########
+
+class Context:
+    def __init__(self, display_name, parent = None, parent_entry_pos = None):
+        self.display_name = display_name
+        self.parent = parent
+        self.parent_entry_pos = parent_entry_pos  
+
+###############
+#InterpreterResult
+###############
+
+class InterpreterResult:
+
+    def __init__(self):
+        self.pNumber = None
+        self.error = None
+
+    def register(self, resObj):
+        if isinstance(resObj, InterpreterResult):
+            if resObj.error:
+                self.error = resObj.error
+            return resObj.pNumber
+        return resObj
+
+    def success(self, pNumber):
+        self.pNumber = pNumber
+        return self
+
+    def failure(self, error):
+        self.error = error
+        return self
     
 ###############
 #NUMBER
@@ -300,26 +367,41 @@ class PNumber:
 
     def __init__(self, number):
         self.number = number
+        self.setContext()
+
+    def __repr__(self):
+        return f'{self.number}'
+
+    def setPos(self, pos_start, pos_end):
+        self.pos_start = pos_start
+        self.pos_end = pos_end
+        return self
+    
+    def setContext(self, context = None):
+        self.context = context
+        return self
 
     def added_to(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.number + other.number)
+            return PNumber(self.number + other.number).setContext(self.context), None
         
     def sub_by(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.number - other.number)
+            return PNumber(self.number - other.number).setContext(self.context), None
         
     def div_by(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.number / other.number)
+            if other.number == 0:
+                return None, RunTimeError("Division by zero is not possible", other.pos_start, other.pos_end, self.context)
+            return PNumber(self.number / other.number).setContext(self.context), None
     
     def multed_to(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.number * other.number)
+            return PNumber(self.number * other.number).setContext(self.context), None
     
     def pow_by(self, other):
         if isinstance(other, PNumber):
-            return PNumber(self.number ** other.number)
+            return PNumber(self.number ** other.number).setContext(self.context), None
 
 ###############
 #INTERPRETER
@@ -327,45 +409,62 @@ class PNumber:
 
 class Interpreter:
     
-    def visit(self, node):
+    def visit(self, node, context):
         typeOfNode = type(node).__name__
         self.methodName = f'visit_{typeOfNode}'
         method = getattr(self, self.methodName, self.no_visit)
-        return method(node)
+        return method(node, context)
     
-    def no_visit(self, node):
+    def no_visit(self, node, context):
         raise Exception(f'visit_{type(node).__name__} method is not available')
     
     #this method returns PNumber
-    def visit_NumberNode(self, node):
-        return PNumber(node.numToken.value)
+    def visit_NumberNode(self, node, context):
+        return InterpreterResult().success(
+            PNumber(node.numToken.value)
+            .setPos(node.pos_start, node.pos_end)
+            .setContext(context)
+            )
 
-    def visit_BinaryNode(self, node):
-        leftNum = self.visit(node.leftNode)
-        rightNum = self.visit(node.rightNode)
+    def visit_BinaryNode(self, node, context):
+        interpreterResult = InterpreterResult()
+        leftNum = interpreterResult.register(self.visit(node.leftNode, context))
+        if interpreterResult.error:
+            return interpreterResult
+        rightNum = interpreterResult.register(self.visit(node.rightNode, context))
+        if interpreterResult.error:
+            return interpreterResult
         op_token_type = node.op_tok.type
 
         if op_token_type == TT_MUL:
-            resultNum = leftNum.multed_to(rightNum)
+            resultNum, error = leftNum.multed_to(rightNum)
         elif op_token_type == TT_DIV:
-            resultNum = leftNum.div_by(rightNum)
+            resultNum,error = leftNum.div_by(rightNum)
         elif op_token_type == TT_POW:
-            resultNum = leftNum.pow_by(rightNum)
+            resultNum, error = leftNum.pow_by(rightNum)
         elif op_token_type == TT_PLUS:
-            resultNum = leftNum.added_to(rightNum)
+            resultNum, error = leftNum.added_to(rightNum)
         elif op_token_type == TT_MINUS:
-            resultNum = leftNum.sub_by(rightNum)
+            resultNum, error = leftNum.sub_by(rightNum)
 
-        return resultNum
+        if error:
+            return interpreterResult.failure(error)
+        else:
+            return interpreterResult.success(resultNum.setPos(node.pos_start, node.pos_end))
 
-    def visit_UnaryNode(self, node):
-        rightNum = self.visit(node.rightNode)
+    def visit_UnaryNode(self, node, context):
+        interpreterResult = InterpreterResult()
+        rightNum = interpreterResult.register(self.visit(node.rightNode, context))
+        if interpreterResult.error:
+            return interpreterResult
         op_tok_type = node.op_token.type
 
         if op_tok_type == TT_MINUS:
-            rightNum = rightNum.multed_to(PNumber(-1))
+            rightNum, error = rightNum.multed_to(PNumber(-1))
 
-        return rightNum
+        if error:
+            return interpreterResult.failure(error)
+        return interpreterResult.success(rightNum.setPos(node.pos_start, node.pos_end))
 
 
 ###############
@@ -390,6 +489,11 @@ def run(userInput, fileName):
     #create Interpreter instance
     print(parseResult.node)
     interpreter = Interpreter()
-    calcualtedNum = interpreter.visit(parseResult.node)
-    return calcualtedNum.number, None
+
+    
+    #create context
+    context = Context('<programe>')
+
+    result = interpreter.visit(parseResult.node, context)
+    return result.pNumber, result.error
 
