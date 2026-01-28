@@ -33,3 +33,8 @@ expression
 power
 */
 +-
+
+#############################
+
+var a = 3
+keyword identifier = <expression>

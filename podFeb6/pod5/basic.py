@@ -1,4 +1,5 @@
 from strings_with_arrows import *
+import string 
 
 
 #TASK: Tokenize input
@@ -6,6 +7,7 @@ from strings_with_arrows import *
 #TASK: add Error
 #TASK: Interpreter - calcualte organized tokens
 #TASK: Error for div by zero
+#TASK: for variable exressions like >Var a = 5< create tokens
 
 ###############
 #TOKENS
@@ -23,6 +25,17 @@ TT_FLOAT = "FLOAT"
 DIGITS = "0123456789"
 TT_EOF = "EOF"
 DOT = "."
+
+TT_KEYWORD = "KEYWORD"
+TT_IDENTIFIER = "IDENTIFIER"
+TT_EQUAL = "EQUAL"
+LETTERS = string.ascii_letters
+LETTERS_DIGITS = LETTERS + DIGITS
+UNDERSCORE = '_'
+KEYWORDS = [
+    "VAR"
+]
+
 
 class Tokens:
     def __init__(self, tokenType, tokenValue = None, pos_start = None, pos_end = None):
@@ -149,6 +162,9 @@ class Lexer:
             elif self.currentChar == '/':
                 tokens.append(Tokens(TT_DIV, pos_start = self.position.copy()))
                 self.advance()
+            elif self.currentChar == '=':
+                tokens.append(Tokens(TT_EQUAL, pos_start = self.position.copy()))
+                self.advance()
             elif self.currentChar == '(':
                 tokens.append(Tokens(TT_LPAREN, pos_start = self.position.copy()))
                 self.advance()
@@ -160,6 +176,8 @@ class Lexer:
                 self.advance()
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberToken())
+            elif self.currentChar in LETTERS:
+                tokens.append(self.makeIdentifierOrKeyWord())
             else:
                 #return error
                 pos_start = self.position.copy()
@@ -186,6 +204,17 @@ class Lexer:
         if dot_cout == 1:
             return Tokens(TT_FLOAT, float(num_str), pos_start=pos_start, pos_end=self.position)
         return Tokens(TT_INT, int(num_str), pos_start=pos_start, pos_end=self.position)
+    
+    def makeIdentifierOrKeyWord(self):
+        idt_or_key_str = ''
+        pos_start = self.position.copy()
+        
+        while self.currentChar != None and self.currentChar in LETTERS_DIGITS + UNDERSCORE:
+            idt_or_key_str += self.currentChar
+            self.advance()
+
+        token_type = TT_KEYWORD if idt_or_key_str in KEYWORDS else TT_IDENTIFIER
+        return Tokens(token_type, idt_or_key_str, pos_start=pos_start, pos_end=self.position)
     
 
 ###############
