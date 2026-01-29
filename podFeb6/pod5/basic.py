@@ -47,6 +47,9 @@ class Tokens:
 
         if pos_end:
             self.pos_end = pos_end
+
+    def matches(self, type_, value):
+        return self.type == type_ and self.value ==value
         
 
     def __repr__(self):
@@ -251,6 +254,27 @@ class UnaryNode:
     def __repr__(self):
         return f'({self.op_token}, {self.rightNode})'
     
+class VarAccessNode:
+    def __init__(self, var_name_tok):
+        self.var_name_tok = var_name_tok
+
+        self.pos_start = self.var_name_tok.pos_start
+        self.pos_end = self.var_name_tok.pos_end
+
+    def __repr__(self):
+        return f'{self.var_name_tok}'
+
+class VarAssignNode:
+    def __init__(self, var_name_tok, value_node):
+        self.var_name_tok = var_name_tok
+        self.value_node = value_node
+
+        self.pos_start = self.var_name_tok.pos_start
+        self.pos_end = self.value_node.pos_end
+
+    def __repr__(self):
+        return  f'({self.var_name_tok}, {self.value_node})'
+    
 ###############
 #ParseResult
 ###############
@@ -304,6 +328,9 @@ class Parser:
             if parseResult.error:
                 return parseResult
             return parseResult.success(UnaryNode(currentToken, atom))
+        elif currentToken.type == TT_IDENTIFIER:
+            self.advance()
+            return parseResult.success(VarAccessNode(currentToken))
         else:
             return parseResult.failure(InvalidCharError("required int or float or unaryNumber", currentToken.pos_start, currentToken.pos_end))
             
@@ -330,6 +357,34 @@ class Parser:
 
 
     def expr(self):
+        res = ParseResult()
+
+        if self.currentToken.matches(TT_KEYWORD, 'VAR'):
+            res.register(self.advance())
+
+            if self.currentToken.type != TT_IDENTIFIER:
+                return res.failure(
+                    InvalidsyntaxError(
+                        "Expected identifier", 
+                        self.currentToken.pos_start, self.currentToken.pos_end
+                    )
+                )
+            identifier_token = self.currentToken
+            res.register(self.advance())
+
+            if self.currentToken.type != TT_EQUAL:
+                return res.failure(
+                    InvalidsyntaxError(
+                        "Expected =", self.currentToken.pos_start, self.currentToken.pos_end
+                    )
+                )
+            res.register(self.advance())
+            expr = res.register(self.expr())
+
+            if res.error:
+                return res
+            return res.success(VarAssignNode(identifier_token, expr))
+
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
     
     def bin_op(self, funcA, opTokens):
