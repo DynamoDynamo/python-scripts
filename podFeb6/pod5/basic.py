@@ -322,38 +322,41 @@ class Parser:
         if currentToken.type in (TT_INT, TT_FLOAT):
             self.advance()
             return parseResult.success(NumberNode(currentToken))
-        elif currentToken.type in (TT_PLUS, TT_MINUS):
-            self.advance()
-            atom = parseResult.register(self.atom())
-            if parseResult.error:
-                return parseResult
-            return parseResult.success(UnaryNode(currentToken, atom))
         elif currentToken.type == TT_IDENTIFIER:
             self.advance()
             return parseResult.success(VarAccessNode(currentToken))
-        else:
-            return parseResult.failure(InvalidCharError("required int or float or unaryNumber", currentToken.pos_start, currentToken.pos_end))
-            
-    def paranExpr(self):
-        parseResult = ParseResult()
-        currentToken = self.currentToken
-        if currentToken.type == TT_LPAREN:
+        elif currentToken.type == TT_LPAREN:
             self.advance()
-            exprInsideParan = parseResult.register(self.expr())
+            expr = parseResult.register(self.expr())
             if parseResult.error:
                 return parseResult
             if self.currentToken.type == TT_RPAREN:
                 self.advance()
-                return parseResult.success(exprInsideParan)
+                return parseResult.success(expr)
             else:
-                return parseResult.failure(InvalidsyntaxError("'(' symbol required", currentToken.pos_start, self.currentToken.pos_end))
-        return self.atom()
-        
-    def pow(self):
-        return self.bin_op(self.paranExpr, (TT_POW)) 
+                return parseResult.failure(InvalidsyntaxError("'(' Rparen required"), self.currentToken.pos_start, self.currentToken.pos_end)
+        else:
+            return parseResult.failure(InvalidCharError("required int, float, identifier or math symbol", currentToken.pos_start, currentToken.pos_end))
+            
+    #Func A is self.atom, meaning it will return number or identifier or expression
+    #after funcA, if self.currentToken type is a power, then it will call self. factor(return unary if + or - tokentype)>self.power>returnns self.atom() returns number or identifier or expression
+    def power(self):
+        return self.bin_op(self.atom, (TT_POW), self.factor)
+    
+    #By default it will return self.power(), except when currentToken type is + or -, then it will return Unary Number
+    def factor(self):
+        res = ParseResult()
+        tok = self.currentToken
+        if tok.type in (TT_PLUS, TT_MINUS):
+            self.advance()
+            factor = res.register(self.factor())
+            if res.error: 
+                return res
+            return res.success(UnaryNode(tok, factor))
+        return self.power()
 
     def term(self):
-        return self.bin_op(self.pow, (TT_MUL, TT_DIV))
+        return self.bin_op(self.factor, (TT_MUL, TT_DIV))
 
 
     def expr(self):
@@ -387,7 +390,9 @@ class Parser:
 
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
     
-    def bin_op(self, funcA, opTokens):
+    def bin_op(self, funcA, opTokens, funcB = None):
+        if funcB == None:
+            funcB = funcA
         parseResult = ParseResult()
         left = parseResult.register(funcA())
         if parseResult.error:
@@ -395,7 +400,7 @@ class Parser:
         while self.currentToken.type in opTokens:
             op_token = self.currentToken
             self.advance()
-            right = parseResult.register(funcA())
+            right = parseResult.register(funcB())
             if parseResult.error:
                 return parseResult
             left  = BinaryNode(left, op_token, right)
@@ -406,7 +411,28 @@ class Parser:
         if self.currentToken.type != TT_EOF and not parseResult.error:
             return parseResult.failure(InvalidsyntaxError("math symbol required", self.currentToken.pos_start, self.currentToken.pos_end))
         return parseResult
+    
 
+###############
+#SYMBOLTABLE
+###############
+
+class IdentifierValueTable:
+    def __init__(self):
+        self.symbols = {}
+        self.parent = None
+
+    def get(self, name):
+        value = self.symbols.get(name, None)
+        if value == None and self.parent:
+            return self.parent.get(name)
+        return value
+
+    def set(self, name, value):
+        self.symbols[name] = value
+
+    def remove(self, name):
+        del self.symbols[name]
 
 ###########
 #CONTEXT
@@ -417,6 +443,7 @@ class Context:
         self.display_name = display_name
         self.parent = parent
         self.parent_entry_pos = parent_entry_pos  
+        self.identifierValue_table = None
 
 ###############
 #InterpreterResult
@@ -486,6 +513,12 @@ class PNumber:
     def pow_by(self, other):
         if isinstance(other, PNumber):
             return PNumber(self.number ** other.number).setContext(self.context), None
+        
+    def copy(self):
+        copy = PNumber(self.number)
+        copy.setPos(self.pos_start, self.pos_end)
+        copy.setContext(self.context)
+        return copy
 
 ###############
 #INTERPRETER
@@ -549,11 +582,41 @@ class Interpreter:
         if error:
             return interpreterResult.failure(error)
         return interpreterResult.success(rightNum.setPos(node.pos_start, node.pos_end))
+    
+    #this method is used to assign Obj of varNames and values to identifierVarTable
+    def visit_VarAssignNode(self, node, context):
+        interpreterResult = InterpreterResult()
+        print(type(node.var_name_tok).__name__)
+        print(type(node.value_node).__name__)
+
+        #take the values from node LHS is variable name, RHS can be UnaryNode(-3), NumberNOde(7), BinaryNode((3 + 5) /3) or another variable meaning access node
+        var_name = node.var_name_tok.value
+        value = interpreterResult.register(self.visit(node.value_node, context))
+        if interpreterResult.error:
+            return interpreterResult
+        
+        context.identifierValue_table.set(var_name, value)
+        return interpreterResult.success(value)
+    
+    def visit_VarAccessNode(self, node, context):
+        interpreterResult = InterpreterResult()
+        #take the values from the node
+        var_name = node.var_name_tok.value
+        value = context.identifierValue_table.get(var_name)
+        if not value:
+            return interpreterResult.failure(RunTimeError("variable value is not assigned", node.pos_start, node.pos_end, context))
+        value = value.copy().setPos(node.pos_start, node.pos_end)
+        return interpreterResult.success(value)
+
+
 
 
 ###############
 #RUN
 ###############
+
+global_symbol_table = IdentifierValueTable()
+global_symbol_table.set("null", PNumber(0))
     
 def run(userInput, fileName):
     #create lexer instance 
@@ -577,7 +640,7 @@ def run(userInput, fileName):
     
     #create context
     context = Context('<programe>')
-
+    context.identifierValue_table = global_symbol_table
     result = interpreter.visit(parseResult.node, context)
     return result.pNumber, result.error
 
