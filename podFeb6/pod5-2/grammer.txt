@@ -14,3 +14,46 @@
 1
 >>> FALSE  
 0
+
+
+PARSER
+
+if expression are like 
+
+5 + 5 == 2 + 8
+ result should be (5 + 5) == (2 + 8), not 5 + (5 == 2) + 8
+for above comparision operator, priority should be given to LHS and RHS expressions 
+rather than the middle operator
+
+if we have a VAR assignment like
+VAR = 5 == 5, priority should be comparision expression like VAR = (5 == 5)
+rather than variable assignment (VAR = 5) == 5
+
+if we have logical operators along with comparision exressions like 
+5 == 5 AND 6 == 6
+priority should be given to comparision operation not logical (5 == 5) AND (6 == 6)
+not to logical 5 == (5 AND  6) == 6
+
+for not 
+NOT 1== 2 it will be NOT (1 == 2)
+
+###########################
+so in the oder of more priority to less priority 
+
+atom : INT|FLOAT|IDENTIFIER
+     : LPAREN expr RPAREN
+
+power : atom (POW factor)*
+
+factor : (PLUS | MINUS) factor 
+       : power
+
+term : factor ((MUL|DIV) factor)*
+
+arith-expr: term ((PLUS|MINUS) term)*
+
+comp-expr : NOT comp-expr
+           : arith_expr ((EE|LT|GT|LTE|GTE)) arith-expr
+
+expr : KEYWORD: VAR IDENTIFIER EQ expr 
+     : comp-expr ((KEYWORD:AND|KEYWORD:OR) comp-expr)*

@@ -116,6 +116,10 @@ TT_GT = 'GT'
 TT_LTE = 'LTE'
 TT_GTE = 'GTE'
 
+TT_AND = 'AND'
+TT_OR = 'OR'
+TT_NOT = 'NOT'
+
 KEYWORDS = [
     'VAR', 
     'AND', 
@@ -189,6 +193,15 @@ class Lexer:
                 self.advance()
             elif self.current_char == ')':
                 tokens.append(Token(TT_RPAREN, pos_start=self.pos))
+                self.advance()
+            elif self.current_char == 'AND':
+                tokens.append(Token(TT_AND, pos_start=self.pos))
+                self.advance()
+            elif self.current_char == 'OR':
+                tokens.append(Token(TT_OR, pos_start=self.pos))
+                self.advance()
+            elif self.current_char == 'NOT':
+                tokens.append(Token(TT_NOT, pos_start=self.pos))
                 self.advance()
             elif self.current_char == '!':
                 tok, error = self.make_not_equals()
@@ -435,6 +448,31 @@ class Parser:
 
     def term(self):
         return self.bin_op(self.factor, (TT_MUL, TT_DIV))
+    
+    def comp_expr(self):
+        res = ParseResult()
+
+        if self.current_tok.type == TT_NOT:
+            op_tok = self.current_tok
+            res.register_advancement()
+            self.advance()
+
+            node = res.register(self.comp_expr())
+            if res.error: return res
+            return res.success(UnaryOpNode(op_tok, node))
+
+        node = res.register(self.bin_op(self.arith_expr, (TT_EE, TT_NE, TT_LT, TT_GT, TT_LTE, TT_GTE)))
+
+        if res.error:
+            return res.failure(InvalidSyntaxError(
+                self.current_tok.pos_start, self.current_tok.pos_end,
+                "Expected int, float, identifier, '+', '-', '(', or 'NOT'"
+            ))
+
+        return res.success(node)
+    
+    def arith_expr(self):
+        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
 
     def expr(self):
         res = ParseResult()
@@ -465,7 +503,7 @@ class Parser:
             if res.error: return res
             return res.success(VarAssignNode(var_name, expr))
 
-        node = res.register(self.bin_op(self.term, (TT_PLUS, TT_MINUS)))
+        node = res.register(self.bin_op(self.comp_expr, (TT_AND, TT_OR)))
 
         if res.error:
             return res.failure(InvalidSyntaxError(
