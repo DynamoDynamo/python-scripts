@@ -1,0 +1,16 @@
+>>> 5 == 6
+0
+>>> 6 == 6
+1
+>>> 5 == 5 and 6 == 6
+1
+>>> 1 + 1 == 2 or 2 + 2 == 5
+1
+>>> not 0 ( returns true incase of false)
+1
+>>> not 1 (returns false incase of true)
+0
+>>> TRUE
+1
+>>> FALSE  
+0
