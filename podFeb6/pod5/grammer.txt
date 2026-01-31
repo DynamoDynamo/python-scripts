@@ -52,3 +52,17 @@ power
 
 var a = 3
 keyword identifier = <expression>
+
+ Errors
+
+if the 1st expression is invalid like
+
+* + VAR a = 5
+^
+Expected VAR, mathysmbol error< In the error msg VAR can bepreset
+
+but if the 1st expression is valid
+
+5 + VAR a = 5
+     ^
+    Now error at this point should not contain VAR word, it should be like "Expected Mathsymbol or something"

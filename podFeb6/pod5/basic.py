@@ -7,7 +7,8 @@ import string
 #TASK: add Error
 #TASK: Interpreter - calcualte organized tokens
 #TASK: Error for div by zero
-#TASK: for variable exressions like >Var a = 5< create tokens
+#TASK: for variable exressions like >Var a = 5< create tokens, parser and interpreter
+#TASK: create proper error for input like *, 5 + VAR = 5
 
 ###############
 #TOKENS
@@ -284,20 +285,25 @@ class ParseResult:
     def __init__(self):
         self.node = None
         self.error = None
+        self.advance_count = 0
 
+    def register_advancements(self):
+        self.advance_count += 1
+
+#lastTaskModification: register method will be only for parseResults, we r gonna call advancements() before register
+    #increment the count by other parseResult count
     def register(self, resObj):
-        if isinstance(resObj, ParseResult):
-            if resObj.error:
-                self.error = resObj.error
-            return resObj.node
-        return resObj
+        if resObj.error:
+            self.error = resObj.error
+        return resObj.node
 
     def success(self, node):
         self.node = node
         return self
 
     def failure(self, error):
-        self.error = error
+        if not self.error or self.advance_count == 0:
+           self.error = error
         return self
     
 ###############
@@ -320,23 +326,27 @@ class Parser:
         currentToken = self.currentToken
 
         if currentToken.type in (TT_INT, TT_FLOAT):
+            parseResult.register_advancements()
             self.advance()
             return parseResult.success(NumberNode(currentToken))
         elif currentToken.type == TT_IDENTIFIER:
+            parseResult.register_advancements()
             self.advance()
             return parseResult.success(VarAccessNode(currentToken))
         elif currentToken.type == TT_LPAREN:
+            parseResult.register_advancements()
             self.advance()
             expr = parseResult.register(self.expr())
             if parseResult.error:
                 return parseResult
             if self.currentToken.type == TT_RPAREN:
+                parseResult.register_advancements()
                 self.advance()
                 return parseResult.success(expr)
             else:
                 return parseResult.failure(InvalidsyntaxError("'(' Rparen required"), self.currentToken.pos_start, self.currentToken.pos_end)
         else:
-            return parseResult.failure(InvalidCharError("required int, float, identifier or math symbol", currentToken.pos_start, currentToken.pos_end))
+            return parseResult.failure(InvalidCharError("required keyword, int, float, identifier or math symbol", currentToken.pos_start, currentToken.pos_end))
             
     #Func A is self.atom, meaning it will return number or identifier or expression
     #after funcA, if self.currentToken type is a power, then it will call self. factor(return unary if + or - tokentype)>self.power>returnns self.atom() returns number or identifier or expression
@@ -348,6 +358,7 @@ class Parser:
         res = ParseResult()
         tok = self.currentToken
         if tok.type in (TT_PLUS, TT_MINUS):
+            res.register_advancements()
             self.advance()
             factor = res.register(self.factor())
             if res.error: 
@@ -363,7 +374,8 @@ class Parser:
         res = ParseResult()
 
         if self.currentToken.matches(TT_KEYWORD, 'VAR'):
-            res.register(self.advance())
+            res.register_advancements()
+            self.advance()
 
             if self.currentToken.type != TT_IDENTIFIER:
                 return res.failure(
@@ -373,7 +385,8 @@ class Parser:
                     )
                 )
             identifier_token = self.currentToken
-            res.register(self.advance())
+            res.register_advancements()
+            self.advance()
 
             if self.currentToken.type != TT_EQUAL:
                 return res.failure(
@@ -381,14 +394,21 @@ class Parser:
                         "Expected =", self.currentToken.pos_start, self.currentToken.pos_end
                     )
                 )
-            res.register(self.advance())
+            res.register_advancements()
+            self.advance()
             expr = res.register(self.expr())
 
             if res.error:
                 return res
             return res.success(VarAssignNode(identifier_token, expr))
 
-        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+        node = res.register(self.bin_op(self.term, (TT_PLUS, TT_MINUS)))
+        if res.error:
+            return res.failure(
+                InvalidsyntaxError("Expected keyword, number or mathsymbol", self.currentToken.pos_start, self.currentToken.pos_end)
+            )
+        return res.success(node)
+
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
@@ -399,6 +419,7 @@ class Parser:
             return parseResult
         while self.currentToken.type in opTokens:
             op_token = self.currentToken
+            parseResult.register_advancements()
             self.advance()
             right = parseResult.register(funcB())
             if parseResult.error:
@@ -586,8 +607,6 @@ class Interpreter:
     #this method is used to assign Obj of varNames and values to identifierVarTable
     def visit_VarAssignNode(self, node, context):
         interpreterResult = InterpreterResult()
-        print(type(node.var_name_tok).__name__)
-        print(type(node.value_node).__name__)
 
         #take the values from node LHS is variable name, RHS can be UnaryNode(-3), NumberNOde(7), BinaryNode((3 + 5) /3) or another variable meaning access node
         var_name = node.var_name_tok.value
@@ -607,9 +626,6 @@ class Interpreter:
             return interpreterResult.failure(RunTimeError("variable value is not assigned", node.pos_start, node.pos_end, context))
         value = value.copy().setPos(node.pos_start, node.pos_end)
         return interpreterResult.success(value)
-
-
-
 
 ###############
 #RUN
