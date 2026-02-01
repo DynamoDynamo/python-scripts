@@ -64,6 +64,13 @@ class IllegalCharError(Error):
     def __init__(self, errorDetails, pos_start, pos_end):
         super().__init__("IllegalCharError", errorDetails, pos_start, pos_end)
 
+############
+#IllegalSyntax
+############
+class InvalidSyntaxError(Error):
+    def __init__(self, errorDetails, pos_start, pos_end):
+        super().__init__("InvalidSyntaxError", errorDetails, pos_start, pos_end)
+
 #############
 #POSITION
 #############
@@ -192,6 +199,29 @@ class UnaryNode:
         return f'({self.op_token},{self.rightNode})'
     
 ############
+#ParseResult
+############
+
+class ParseResult:
+    def __init__(self):
+        self.node = None
+        self.error = None
+    
+    def register(self, obj):
+        if isinstance(obj, ParseResult):
+            self.error = obj.error
+            return obj.node
+        return obj
+    
+    def success(self, node):
+        self.node = node
+        return self
+    
+    def failure(self, error):
+        self.error = error
+        return self
+    
+############
 #Parser
 ############
 
@@ -209,22 +239,34 @@ class Parser:
     def atom(self):
         #return numberNode
         currentToken = self.currentToken
+        parseResultObj = ParseResult()
 
         if currentToken.type in (TT_INT, TT_FLOAT):
             self.advance()
-            return NumberNode(currentToken)
+            return parseResultObj.success(NumberNode(currentToken))
         elif currentToken.type == TT_LPAREN:
             self.advance()
-            expr = self.expr()
+            expr = parseResultObj.register(self.expr())
+            if parseResultObj.error:
+                return parseResultObj
             if self.currentToken.type == TT_RPAREN:
                 self.advance()
                 return expr
+            else:
+                return parseResultObj.failure(InvalidSyntaxError("missing ')' right paran", self.currentToken.pos_start, self.currentToken.pos_end))
+        else:
+            return parseResultObj.failure(InvalidSyntaxError("missing number or parnthesis expr", currentToken.pos_start, currentToken.pos_end))
+            
             
     def factor(self):
          currentToken = self.currentToken
+         parseResultObj = ParseResult()
          if currentToken.type in (TT_PLUS, TT_MINUS):
             self.advance()
-            return UnaryNode(currentToken, self.factor())
+            factor = parseResultObj.register(self.factor())
+            if parseResultObj.error:
+                return parseResultObj
+            return parseResultObj.success(UnaryNode(currentToken, factor))
          return self.power()
             
     def power(self):
@@ -239,17 +281,27 @@ class Parser:
     def bin_op(self, funcA, funcB, opTokens):
         if funcB == None:
             funcB = funcA
-        leftNode = funcA()
+        parseResultObj = ParseResult()
+        leftNode = parseResultObj.register(funcA())
+        if parseResultObj.error:
+            return parseResultObj
         while self.currentToken.type in opTokens:
             op_token = self.currentToken
             self.advance()
-            rightNode = funcB()
+            rightNode = parseResultObj.register(funcB())
+            if parseResultObj.error:
+                return parseResultObj
             leftNode = BinaryNode(leftNode, op_token, rightNode)
-        return leftNode
+        return parseResultObj.success(leftNode)
 
         
     def getParsedExpr(self):
-        return self.expr(), None
+        parseResultObj = self.expr()
+        if self.currentToken.type != TT_EOF and not parseResultObj.error:
+            return parseResultObj.failure(
+                InvalidSyntaxError("math symbol is missing", self.currentToken.pos_start, self.currentToken.pos_end)
+            )
+        return parseResultObj
 
     
 ###########
@@ -268,6 +320,6 @@ def run(userInput, fileName):
     #Create Parser instance and orgaize tokens into nodes
     print(f'lexer tokens: {tokens}')
     parser = Parser(tokens)
-    result, error = parser.getParsedExpr()
+    parseResult = parser.getParsedExpr()
 
-    return result, error
+    return parseResult.node, parseResult.error
