@@ -1,0 +1,52 @@
+what are the math symbols we are dealing with 
+
++ - * / ^
+
+number
+Paran expression
+
+power
+unary number
+mul/div
+plus/minus
+
+unaryNumber
+()
+
+3^3 + 5
+27 + 5
+3 ^ (3 + 5)
+-3^3 +5
+
+^
+
+number < atom
+number mathsymbol number (*/) > term 3 *3 4/4 > atom (*/ atom)
++- > expr
+
+3 * 5 + 6 /7
+((3 *5) + (6 /7)) > expr > term (+/ term)*
+
+3 = atom
+-3 = +-(atom)
+
+-(3 + 3) -(expr)
+3 * (5 + 6) /7 - (expr)
+
+power ^
+3 ^ 7
+(3 / 7)^(3 *9)
+3^ 3 + 7 , first power
+3 + 3 ^ 3 + 7
+
+-3^3 > -(3^3) = -27
+(-3)^3
+
+number - atom
+expression - atom
+power
+Unary - factor
+term -
+expr
+
+3 ^(-3, (expr), number)
