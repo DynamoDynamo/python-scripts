@@ -6,6 +6,8 @@ from strings_with_arrows import *
 
 #TASK: organize tokens through interpreter inorder of execution
 
+#TASK: execute nodes, according to the order of execution
+
 ###########
 #TOKENS
 ###########
@@ -303,7 +305,74 @@ class Parser:
             )
         return parseResultObj
 
+###########
+#INTERPRETER
+##########
+class PNumber:
+    def __init__(self, value):
+        self.number = value
+    def __repr__(self):
+        return f'{self.number}'
     
+    def addedTo(self, other):
+        return PNumber(self.number + other.number)
+    
+    def subBy(self, other):
+        return PNumber(self.number - other.number)
+    
+    def multedTo(self, other):
+        return PNumber(self.number * other.number)
+    
+    def dividedBy(self, other):
+        return PNumber(self.number / other.number)
+    
+    def poweredBy(self, other):
+        return PNumber(self.number ** other.number)
+    
+
+class Interpreter:
+
+    def visit(self, node):
+        typeOfNode = type(node).__name__
+        methodName = f'visit_{typeOfNode}'
+        method = getattr(self, methodName, self.no_visit_method)
+        return method(node)
+    
+    def visit_NumberNode(self, node):
+        numToken = node.numToken
+        return PNumber(numToken.value)
+
+    def visit_BinaryNode(self, node):
+        leftNumber = self.visit(node.leftNode)
+        rightNumber = self.visit(node.rightNode)
+        op_token_type = node.op_token.type
+
+        if op_token_type == TT_PLUS:
+            number = leftNumber.addedTo(rightNumber)
+        elif op_token_type == TT_MINUS:
+            number = leftNumber.subBy(rightNumber)
+        elif op_token_type == TT_MUL:
+            number = leftNumber.multedTo(rightNumber)
+        elif op_token_type == TT_DIV:
+            number = leftNumber.dividedBy(rightNumber)
+        elif op_token_type == TT_POW:
+            number = leftNumber.poweredBy(rightNumber)
+
+        return number
+
+    def visit_UnaryNode(self, node):
+        op_token_type = node.op_token.type
+        rightNumber = self.visit(node.rightNode)
+
+        if op_token_type == TT_MINUS:
+            number = rightNumber.multedTo(PNumber(-1))
+
+        return number
+
+
+    def no_visit_method(self, node):
+        raise Exception(f"there is no method named visit_{type(node).__name__} in interpreter")
+
 ###########
 #RUN
 ##########
@@ -321,5 +390,17 @@ def run(userInput, fileName):
     print(f'lexer tokens: {tokens}')
     parser = Parser(tokens)
     parseResult = parser.getParsedExpr()
+
+    if parseResult.error:
+        return None, parseResult.error
+
+    #create interpreter instance and get the calculated result
+
+    print(f'this if the node {parseResult.node}')
+    interpreterInstance = Interpreter()
+    number = interpreterInstance.visit(parseResult.node)
+
+    print("\n")
+    print(number)
 
     return parseResult.node, parseResult.error
