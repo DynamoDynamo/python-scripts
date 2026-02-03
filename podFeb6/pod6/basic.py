@@ -8,6 +8,8 @@ from strings_with_arrows import *
 
 #TASK: execute nodes, according to the order of execution
 
+#TASK: create divded by zero error with position
+
 ###########
 #TOKENS
 ###########
@@ -72,6 +74,13 @@ class IllegalCharError(Error):
 class InvalidSyntaxError(Error):
     def __init__(self, errorDetails, pos_start, pos_end):
         super().__init__("InvalidSyntaxError", errorDetails, pos_start, pos_end)
+
+############
+#RunTimeError
+############
+class RunTimeError(Error):
+    def __init__(self, errorDetails, pos_start, pos_end):
+        super().__init__("RunTimeError", errorDetails, pos_start, pos_end)
 
 #############
 #POSITION
@@ -180,6 +189,9 @@ class NumberNode:
     def __init__(self, numberToken):
         self.numToken = numberToken
 
+        self.pos_start = numberToken.pos_start
+        self.pos_end = numberToken.pos_end
+
     def __repr__(self):
         return f'{self.numToken}'
     
@@ -189,6 +201,9 @@ class BinaryNode:
         self.op_token = op_token
         self.rightNode = right_node
 
+        self.pos_start = leftNode.pos_start
+        self.pos_end = right_node.pos_end
+
     def __repr__(self):
         return f'({self.leftNode}, {self.op_token}, {self.rightNode})'
     
@@ -196,6 +211,9 @@ class UnaryNode:
     def __init__(self, op_token, rightNode):
         self.op_token = op_token
         self.rightNode = rightNode
+
+        self.pos_start = op_token.pos_start
+        self.pos_end = rightNode.pos_end
 
     def __repr__(self):
         return f'({self.op_token},{self.rightNode})'
@@ -304,6 +322,27 @@ class Parser:
                 InvalidSyntaxError("math symbol is missing", self.currentToken.pos_start, self.currentToken.pos_end)
             )
         return parseResultObj
+    
+###########
+#INTERPRETERRESULT
+##########
+class InterpreterResult:
+    def __init__(self):
+        self.pnumber = None
+        self.error = None
+
+    def register(self, irObj):
+        if irObj.error:
+            self.error = irObj.error
+        return irObj.pnumber
+
+    def success(self, pnumber):
+        self.pnumber = pnumber
+        return self
+
+    def failure(self, error):
+        self.error = error
+        return self
 
 ###########
 #INTERPRETER
@@ -314,20 +353,27 @@ class PNumber:
     def __repr__(self):
         return f'{self.number}'
     
+    def set_pos(self, pos_start, pos_end):
+        self.pos_start = pos_start
+        self.pos_end = pos_end
+        return self
+    
     def addedTo(self, other):
-        return PNumber(self.number + other.number)
+        return PNumber(self.number + other.number), None
     
     def subBy(self, other):
-        return PNumber(self.number - other.number)
+        return PNumber(self.number - other.number), None
     
     def multedTo(self, other):
-        return PNumber(self.number * other.number)
+        return PNumber(self.number * other.number), None
     
     def dividedBy(self, other):
-        return PNumber(self.number / other.number)
+        if other.number == 0:
+            return None, RunTimeError("Division by zero is not possible", other.pos_start, other.pos_end)
+        return PNumber(self.number / other.number), None
     
     def poweredBy(self, other):
-        return PNumber(self.number ** other.number)
+        return PNumber(self.number ** other.number), None
     
 
 class Interpreter:
@@ -340,34 +386,48 @@ class Interpreter:
     
     def visit_NumberNode(self, node):
         numToken = node.numToken
-        return PNumber(numToken.value)
+        return InterpreterResult().success(PNumber(numToken.value).set_pos(node.pos_start, node.pos_end))
 
     def visit_BinaryNode(self, node):
-        leftNumber = self.visit(node.leftNode)
-        rightNumber = self.visit(node.rightNode)
+        irObj = InterpreterResult()
+        leftNumber = irObj.register(self.visit(node.leftNode))
+        if irObj.error:
+            return irObj
+        rightNumber = irObj.register(self.visit(node.rightNode))
+        if irObj.error:
+            return irObj
         op_token_type = node.op_token.type
 
         if op_token_type == TT_PLUS:
-            number = leftNumber.addedTo(rightNumber)
+            number, error = leftNumber.addedTo(rightNumber)
         elif op_token_type == TT_MINUS:
-            number = leftNumber.subBy(rightNumber)
+            number, error = leftNumber.subBy(rightNumber)
         elif op_token_type == TT_MUL:
-            number = leftNumber.multedTo(rightNumber)
+            number, error = leftNumber.multedTo(rightNumber)
         elif op_token_type == TT_DIV:
-            number = leftNumber.dividedBy(rightNumber)
+            number, error = leftNumber.dividedBy(rightNumber)
         elif op_token_type == TT_POW:
-            number = leftNumber.poweredBy(rightNumber)
+            number, error = leftNumber.poweredBy(rightNumber)
 
-        return number
+        if error:
+            return irObj.failure(error)
+
+        return irObj.success(number.set_pos(node.pos_start, node.pos_end))
 
     def visit_UnaryNode(self, node):
+        irObj = InterpreterResult()
         op_token_type = node.op_token.type
-        rightNumber = self.visit(node.rightNode)
+        rightNumber = irObj.register(self.visit(node.rightNode))
+        if irObj.error:
+            return irObj
 
         if op_token_type == TT_MINUS:
-            number = rightNumber.multedTo(PNumber(-1))
+            number,error = rightNumber.multedTo(PNumber(-1))
 
-        return number
+        if error:
+            irObj.failure(error)
+
+        return irObj.success(number.set_pos(node.pos_start, node.pos_end))
 
 
     def no_visit_method(self, node):
@@ -396,11 +456,10 @@ def run(userInput, fileName):
 
     #create interpreter instance and get the calculated result
 
-    print(f'this if the node {parseResult.node}')
+    print(f'this is the node {parseResult.node}')
     interpreterInstance = Interpreter()
-    number = interpreterInstance.visit(parseResult.node)
+    irObj = interpreterInstance.visit(parseResult.node)
 
     print("\n")
-    print(number)
 
-    return parseResult.node, parseResult.error
+    return irObj.pnumber, irObj.error
