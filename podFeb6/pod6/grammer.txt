@@ -50,3 +50,13 @@ term -
 expr
 
 3 ^(-3, (expr), number)
+
+VAR a = 10
+VAR = KEYWORD
+a = IDENTIFIER
+'=' = EQUAL
+
+var a = 5
+var b = 5 * 5
+RHS should take priority than LHS from perspective of =
+variable_name given seperately < atom

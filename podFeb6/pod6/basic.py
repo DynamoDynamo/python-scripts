@@ -1,4 +1,5 @@
 
+import string
 from strings_with_arrows import *
 
 #TASK: tokenize input for mathsymbol, paran
@@ -8,8 +9,13 @@ from strings_with_arrows import *
 
 #TASK: execute nodes, according to the order of execution
 
-#TASK: create divded by zero error with position
+#TASK: create divded by zero error with position and context
 
+#TASK: tokenize expression like VAR a = 11
+
+#TASK: organize expression like VAR a = 11 into nodes for execution
+
+#TASK: access variable values after they r parsed
 ###########
 #TOKENS
 ###########
@@ -27,6 +33,18 @@ TT_POW = 'POW'
 DIGITS = '0123456789'
 TT_EOF = 'EOF'
 
+TT_KEYWORD = 'KEYWORD'
+TT_EQUAL = 'EQUAL'
+TT_IDENTIFIER = 'IDENTIFIER'
+LETTERS = string.ascii_letters
+LETTERS_DIGITS = LETTERS + DIGITS
+
+KEYWORDS = [
+    'VAR'
+]
+
+
+
 class Tokens:
     def __init__(self, type, value=None, pos_start = None, pos_end = None):
         self.type = type
@@ -42,6 +60,9 @@ class Tokens:
         if self.value:
             return f'{self.type}:{self.value}'
         return f'{self.type}'
+    
+    def matches(self, type, value):
+        return self.type == type and self.value == value
 
 
 #############
@@ -171,6 +192,11 @@ class Lexer:
             elif self.currentChar == '^':
                 tokens.append(Tokens(TT_POW, pos_start=self.position.copy()))
                 self.advance()
+            elif self.currentChar == '=':
+                tokens.append(Tokens(TT_EQUAL, pos_start=self.position.copy()))
+                self.advance()
+            elif self.currentChar in LETTERS:
+                tokens.append(self.makeIdentifierOrKeywordToken())
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberTokens())
             else:
@@ -198,6 +224,21 @@ class Lexer:
         if dot_count == 0:
             return Tokens(TT_INT, int(num_str), pos_start=pos_start, pos_end=self.position)
         return Tokens(TT_FLOAT, float(num_str), pos_start=pos_start, pos_end=self.position)
+    
+    def makeIdentifierOrKeywordToken(self):
+        word = ''
+        pos_start  = self.position.copy()
+
+        while self.currentChar != None and self.currentChar in LETTERS_DIGITS + '_':
+            word += self.currentChar
+            self.advance()
+        
+        if word in KEYWORDS:
+            tokenType = TT_KEYWORD
+        else:
+            tokenType = TT_IDENTIFIER
+
+        return Tokens(tokenType, word, pos_start, self.position)
     
 #############
 #INTERPRETER
@@ -235,6 +276,27 @@ class UnaryNode:
 
     def __repr__(self):
         return f'({self.op_token},{self.rightNode})'
+    
+class VarAssignNode:
+    def __init__(self, var_name_token, var_value_node):
+        self.var_name_token = var_name_token
+        self.var_value_node = var_value_node
+
+        self.pos_start = var_name_token.pos_start
+        self.pos_end = var_value_node.pos_end
+
+    def __repr__(self):
+        return f'({self.var_name_token}, {self.var_value_node})'
+    
+class VarAccessNode:
+    def __init__(self, var_name_token):
+        self.var_name_token = var_name_token
+
+        self.pos_start = var_name_token.pos_start
+        self.pos_end = var_name_token.pos_end
+
+    def __repr__(self):
+        return f'({self.var_name_token})'
     
 ############
 #ParseResult
@@ -282,6 +344,9 @@ class Parser:
         if currentToken.type in (TT_INT, TT_FLOAT):
             self.advance()
             return parseResultObj.success(NumberNode(currentToken))
+        elif currentToken.type == TT_IDENTIFIER:
+            self.advance()
+            return parseResultObj.success(VarAccessNode(currentToken))
         elif currentToken.type == TT_LPAREN:
             self.advance()
             expr = parseResultObj.register(self.expr())
@@ -314,6 +379,35 @@ class Parser:
         return self.bin_op(self.factor, None, (TT_MUL, TT_DIV))
     
     def expr(self):
+        if self.currentToken.matches(TT_KEYWORD, 'VAR'):
+            parseResultObj = ParseResult()
+            #advance
+            self.advance()
+
+            #if next token is not identifier token return error
+            if self.currentToken.type != TT_IDENTIFIER:
+                return parseResultObj.failure(
+                    InvalidSyntaxError("required variable name", self.currentToken.pos_start , self.currentToken.pos_end)
+                )
+            
+            #if it is identifier, move on to next
+            var_name_token = self.currentToken
+            self.advance()
+
+            #if next is not equalTo token return error
+            if self.currentToken.type != TT_EQUAL:
+                return parseResultObj.failure(
+                    InvalidSyntaxError("required '=' symbol", self.currentToken.pos_start, self.currentToken.pos_end)
+                )
+            
+            #if not, advance
+            self.advance()
+
+            #now grab the value
+            node = parseResultObj.register(self.expr())
+            if parseResultObj.error:
+                return parseResultObj
+            return parseResultObj.success(VarAssignNode(var_name_token, node))
         return self.bin_op(self.term, None, (TT_PLUS, TT_MINUS))
     
     def bin_op(self, funcA, funcB, opTokens):
@@ -342,6 +436,27 @@ class Parser:
         return parseResultObj
     
 ###########
+#VARVALUETABLE
+##########
+
+class VarValueTable:
+    def __init__(self):
+        self.varValueObj = {}
+        self.parent = None
+
+    def get(self, variable):
+        value = self.varValueObj.get(variable, None)
+        if value == None and self.parent:
+            return self.parent.get(variable)
+        return value
+
+    def set(self, variable, value):
+        self.varValueObj[variable] = value
+
+    def deleteVar(self, variable):
+        del self.varValueObj[variable]
+    
+###########
 #CONTEXT
 ##########
 
@@ -350,6 +465,7 @@ class Context:
         self.displayName = displayName
         self.parent = parent
         self.parent_entry_pos = parent_entry_pos
+        self.var_value_table = None
     
 ###########
 #INTERPRETERRESULT
@@ -464,14 +580,41 @@ class Interpreter:
             irObj.failure(error)
 
         return irObj.success(number.set_pos(node.pos_start, node.pos_end))
+    
+    def visit_VarAccessNode(self, node, context):
+        irObj = InterpreterResult()
+        var_name_token = node.var_name_token
+        
+        pNumber = context.var_value_table.get(var_name_token.value)
+        if not pNumber:
+            return irObj.failure(
+                RunTimeError("variable value is not defined", node.pos_start, node.pos_end, context)
+            )
+        return irObj.success(pNumber
+                             .set_pos(node.pos_start, node.pos_end)
+                             .set_context(context)
+                             )
+    
+    def  visit_VarAssignNode(self, node, context):
+        irObj = InterpreterResult()
+        var_name_token = node.var_name_token 
+        value_node = node.var_value_node 
+        pNumber = irObj.register(self.visit(value_node, context))
+        if irObj.error:
+            return irObj
 
+        context.var_value_table.set(var_name_token.value, pNumber)
+        return irObj.success(pNumber.set_pos(node.pos_start, node.pos_end))
 
-    def no_visit_method(self, node):
+    def no_visit_method(self, node, context):
         raise Exception(f"there is no method named visit_{type(node).__name__} in interpreter")
 
 ###########
 #RUN
 ##########
+
+global_var_value_table = VarValueTable()
+
 
 def run(userInput, fileName):
     
@@ -494,9 +637,8 @@ def run(userInput, fileName):
 
     print(f'this is the node {parseResult.node}')
     context = Context("<module>")
+    context.var_value_table = global_var_value_table
     interpreterInstance = Interpreter()
     irObj = interpreterInstance.visit(parseResult.node, context)
-
-    print("\n")
 
     return irObj.pnumber, irObj.error
