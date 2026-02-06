@@ -205,7 +205,7 @@ class Lexer:
                 currentChar = self.currentChar
                 self.advance()
                 return None, IllegalCharError(f'{currentChar} not in available tokens', pos_start=currentPos, pos_end=self.position)
-        tokens.append(Tokens(TT_EOF))
+        tokens.append(Tokens(TT_EOF, pos_start=self.position.copy()))
         return tokens, None
 
 
@@ -306,9 +306,14 @@ class ParseResult:
     def __init__(self):
         self.node = None
         self.error = None
+        self.advance_count = 0
+
+    def register_advancement(self):
+        self.advance_count += 1
     
     def register(self, obj):
         if isinstance(obj, ParseResult):
+            self.advance_count += obj.advance_count
             self.error = obj.error
             return obj.node
         return obj
@@ -318,7 +323,9 @@ class ParseResult:
         return self
     
     def failure(self, error):
-        self.error = error
+        #if there is no error before or flow is not advanced, then assign the error
+        if not self.error or self.advance_count == 0:
+            self.error = error
         return self
     
 ############
@@ -342,29 +349,34 @@ class Parser:
         parseResultObj = ParseResult()
 
         if currentToken.type in (TT_INT, TT_FLOAT):
+            parseResultObj.register_advancement()
             self.advance()
             return parseResultObj.success(NumberNode(currentToken))
         elif currentToken.type == TT_IDENTIFIER:
+            parseResultObj.register_advancement()
             self.advance()
             return parseResultObj.success(VarAccessNode(currentToken))
         elif currentToken.type == TT_LPAREN:
+            parseResultObj.register_advancement()
             self.advance()
             expr = parseResultObj.register(self.expr())
             if parseResultObj.error:
                 return parseResultObj
             if self.currentToken.type == TT_RPAREN:
+                parseResultObj.register_advancement()
                 self.advance()
                 return expr
             else:
                 return parseResultObj.failure(InvalidSyntaxError("missing ')' right paran", self.currentToken.pos_start, self.currentToken.pos_end))
         else:
-            return parseResultObj.failure(InvalidSyntaxError("missing number or parnthesis expr", currentToken.pos_start, currentToken.pos_end))
+            return parseResultObj.failure(InvalidSyntaxError("missing number or parnthesis expr or variable name", currentToken.pos_start, currentToken.pos_end))
             
             
     def factor(self):
          currentToken = self.currentToken
          parseResultObj = ParseResult()
          if currentToken.type in (TT_PLUS, TT_MINUS):
+            parseResultObj.register_advancement()
             self.advance()
             factor = parseResultObj.register(self.factor())
             if parseResultObj.error:
@@ -379,9 +391,10 @@ class Parser:
         return self.bin_op(self.factor, None, (TT_MUL, TT_DIV))
     
     def expr(self):
+        parseResultObj = ParseResult()
         if self.currentToken.matches(TT_KEYWORD, 'VAR'):
-            parseResultObj = ParseResult()
             #advance
+            parseResultObj.register_advancement()
             self.advance()
 
             #if next token is not identifier token return error
@@ -392,6 +405,7 @@ class Parser:
             
             #if it is identifier, move on to next
             var_name_token = self.currentToken
+            parseResultObj.register_advancement()
             self.advance()
 
             #if next is not equalTo token return error
@@ -401,6 +415,7 @@ class Parser:
                 )
             
             #if not, advance
+            parseResultObj.register_advancement()
             self.advance()
 
             #now grab the value
@@ -408,7 +423,12 @@ class Parser:
             if parseResultObj.error:
                 return parseResultObj
             return parseResultObj.success(VarAssignNode(var_name_token, node))
-        return self.bin_op(self.term, None, (TT_PLUS, TT_MINUS))
+        node =  parseResultObj.register(self.bin_op(self.term, None, (TT_PLUS, TT_MINUS)))
+        if parseResultObj.error:
+            return parseResultObj.failure(
+                InvalidSyntaxError("missing numer or paran expr or variable name or keyword", self.currentToken.pos_start, self.currentToken.pos_end)
+            )
+        return parseResultObj.success(node)
     
     def bin_op(self, funcA, funcB, opTokens):
         if funcB == None:
@@ -419,6 +439,7 @@ class Parser:
             return parseResultObj
         while self.currentToken.type in opTokens:
             op_token = self.currentToken
+            parseResultObj.register_advancement()
             self.advance()
             rightNode = parseResultObj.register(funcB())
             if parseResultObj.error:

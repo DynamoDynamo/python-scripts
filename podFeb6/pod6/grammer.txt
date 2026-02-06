@@ -60,3 +60,11 @@ var a = 5
 var b = 5 * 5
 RHS should take priority than LHS from perspective of =
 variable_name given seperately < atom
+
+var a = var b = var c =11
+5 + (var x = 9)
+
+Why r we changing the err? what's the purpose of register_advancements?
+What situation in error should be avoided?
+5 + (VAR a = 11) < this gets executed
+5 + VAR a = 11 < but this doesn't < and the error given for this is "missing number or parnthesis expr or variable name" < so in this situation error msg should be overriden 
