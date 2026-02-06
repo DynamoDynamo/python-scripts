@@ -16,6 +16,8 @@ from strings_with_arrows import *
 #TASK: organize expression like VAR a = 11 into nodes for execution
 
 #TASK: access variable values after they r parsed
+
+#TASK: override the error for expressions like '*' and 5 +VAR d = 5
 ###########
 #TOKENS
 ###########
