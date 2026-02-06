@@ -18,6 +18,8 @@ from strings_with_arrows import *
 #TASK: access variable values after they r parsed
 
 #TASK: override the error for expressions like '*' and 5 +VAR d = 5
+
+#TASK: tokenize ==, !=, <, <=, >, >=, AND, OR, NOT
 ###########
 #TOKENS
 ###########
@@ -41,8 +43,19 @@ TT_IDENTIFIER = 'IDENTIFIER'
 LETTERS = string.ascii_letters
 LETTERS_DIGITS = LETTERS + DIGITS
 
+TT_EE = "EE"
+TT_NE = 'NE'
+TT_LT = 'LT'
+TT_LTE = 'LTE'
+TT_GT = 'GT'
+TT_GTE = 'GTE'
+
+
 KEYWORDS = [
-    'VAR'
+    'VAR',
+    'AND',
+    'OR',
+    'NOT'
 ]
 
 
@@ -97,6 +110,13 @@ class IllegalCharError(Error):
 class InvalidSyntaxError(Error):
     def __init__(self, errorDetails, pos_start, pos_end):
         super().__init__("InvalidSyntaxError", errorDetails, pos_start, pos_end)
+
+############
+#expectedCharErr
+############
+class ExpectedCharError(Error):
+    def __init__(self, errorDetails, pos_start, pos_end):
+        super().__init__("ExpectedCharError", errorDetails, pos_start, pos_end)
 
 ############
 #RunTimeError
@@ -194,13 +214,35 @@ class Lexer:
             elif self.currentChar == '^':
                 tokens.append(Tokens(TT_POW, pos_start=self.position.copy()))
                 self.advance()
-            elif self.currentChar == '=':
-                tokens.append(Tokens(TT_EQUAL, pos_start=self.position.copy()))
-                self.advance()
             elif self.currentChar in LETTERS:
                 tokens.append(self.makeIdentifierOrKeywordToken())
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberTokens())
+            elif self.currentChar == '<':
+                token, error = self.make_lessThanToken()
+                if error:
+                    return None, error
+                tokens.append(token)
+                self.advance()
+            elif self.currentChar == '>':
+                token, error = self.make_greaterThanToken()
+                if error:
+                    return None, error
+                tokens.append(token)
+                self.advance()
+            elif self.currentChar == '=':
+                token, error = self.make_EqulasToken()
+                if error:
+                    return None, error
+                tokens.append(token)
+                self.advance()
+            elif self.currentChar == '!':
+                token, error = self.make_NotEqulasToken()
+                self.advance()
+                if error:
+                    return None, error
+                tokens.append(token)
+                self.advance()
             else:
                 #return error
                 currentPos = self.position.copy()
@@ -239,8 +281,37 @@ class Lexer:
             tokenType = TT_KEYWORD
         else:
             tokenType = TT_IDENTIFIER
-
         return Tokens(tokenType, word, pos_start, self.position)
+    
+    def make_NotEqulasToken(self):
+        pos_start = self.position.copy()
+        self.advance()
+        if self.currentChar != '=':
+            return None, ExpectedCharError("missing '=' in != operator", pos_start, self.position) 
+        return Tokens(TT_NE, pos_start=pos_start, pos_end=self.position), None
+
+    def make_EqulasToken(self):
+        pos_start = self.position
+        self.advance()
+        if self.currentChar == '=':
+            return Tokens(TT_EE, pos_start=pos_start, pos_end=self.position), None
+        return Tokens(TT_EQUAL, pos_start=pos_start, pos_end=self.position), None
+
+    def make_greaterThanToken(self):
+        pos_start = self.position
+        self.advance()
+        if self.currentChar == '=':
+            return Tokens(TT_GTE, pos_start=pos_start, pos_end=self.position), None
+        return Tokens(TT_GT, pos_start=pos_start, pos_end=self.position), None
+
+    def make_lessThanToken(self):
+        pos_start = self.position
+        self.advance()
+        if self.currentChar == '=':
+            return Tokens(TT_LTE, pos_start=pos_start, pos_end=self.position), None
+        return Tokens(TT_LT, pos_start=pos_start, pos_end=self.position), None
+    
+
     
 #############
 #INTERPRETER
