@@ -68,3 +68,9 @@ Why r we changing the err? what's the purpose of register_advancements?
 What situation in error should be avoided?
 5 + (VAR a = 11) < this gets executed
 5 + VAR a = 11 < but this doesn't < and the error given for this is "missing number or parnthesis expr or variable name" < so in this situation error msg should be overriden 
+
+VAR X = 3==3 : VAR X =(3 == 3) < priority should be given to solving logical operation then variable assignment
+5 + 3 <= 3 +9 : (5 + 3) <= (3 + 9) < priority should be given to solving LHS and RHS expressions then logical expression
+same is true for AND OR NOTEQ operators
+
+Priority of logical operators is more than Var assignment but less than solving math expressions
