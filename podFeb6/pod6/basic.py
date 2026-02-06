@@ -223,26 +223,21 @@ class Lexer:
                 if error:
                     return None, error
                 tokens.append(token)
-                self.advance()
             elif self.currentChar == '>':
                 token, error = self.make_greaterThanToken()
                 if error:
                     return None, error
                 tokens.append(token)
-                self.advance()
             elif self.currentChar == '=':
                 token, error = self.make_EqulasToken()
                 if error:
                     return None, error
                 tokens.append(token)
-                self.advance()
             elif self.currentChar == '!':
                 token, error = self.make_NotEqulasToken()
-                self.advance()
                 if error:
                     return None, error
                 tokens.append(token)
-                self.advance()
             else:
                 #return error
                 currentPos = self.position.copy()
@@ -288,28 +283,35 @@ class Lexer:
         self.advance()
         if self.currentChar != '=':
             return None, ExpectedCharError("missing '=' in != operator", pos_start, self.position) 
+        self.advance()
         return Tokens(TT_NE, pos_start=pos_start, pos_end=self.position), None
 
     def make_EqulasToken(self):
+        type = TT_EQUAL
         pos_start = self.position
         self.advance()
         if self.currentChar == '=':
-            return Tokens(TT_EE, pos_start=pos_start, pos_end=self.position), None
-        return Tokens(TT_EQUAL, pos_start=pos_start, pos_end=self.position), None
+            self.advance()
+            type = TT_EE
+        return Tokens(type, pos_start=pos_start, pos_end=self.position), None
 
     def make_greaterThanToken(self):
+        type = TT_GT
         pos_start = self.position
         self.advance()
         if self.currentChar == '=':
-            return Tokens(TT_GTE, pos_start=pos_start, pos_end=self.position), None
-        return Tokens(TT_GT, pos_start=pos_start, pos_end=self.position), None
+            self.advance()
+            type = TT_GTE
+        return Tokens(type, pos_start=pos_start, pos_end=self.position), None
 
     def make_lessThanToken(self):
+        type = TT_LT
         pos_start = self.position
         self.advance()
         if self.currentChar == '=':
-            return Tokens(TT_LTE, pos_start=pos_start, pos_end=self.position), None
-        return Tokens(TT_LT, pos_start=pos_start, pos_end=self.position), None
+            self.advance()
+            type = TT_LTE
+        return Tokens(type, pos_start=pos_start, pos_end=self.position), None
     
 
     
