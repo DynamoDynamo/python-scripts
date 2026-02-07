@@ -106,3 +106,16 @@ takes more priorty than VAR assignmet
 
 logical operators
 AND OR NOT
+
+NOT 5 < 2
+logical operators taks less priority than comparision operators
+
+VAR X = NOT 5 < 2
+logical oper takes more priorty than VAR assignment
+
+after NOT, it has to be arith_expr
+NOT +!= < error
+NOT (comp_expr)
+
+AND, OR
+(comp_expr) AND/OR (comp_expr)

@@ -460,7 +460,7 @@ class Parser:
          return self.power()
             
     def power(self):
-        return self.bin_op(self.atom,  self.factor, (TT_POW))
+        return self.bin_op(self.atom,  self.factor, (TT_POW,))
         
     def term(self):
         return self.bin_op(self.factor, None, (TT_MUL, TT_DIV))
@@ -498,15 +498,27 @@ class Parser:
             if parseResultObj.error:
                 return parseResultObj
             return parseResultObj.success(VarAssignNode(var_name_token, node))
-        node =  parseResultObj.register(self.comp_expr())
+        node =  parseResultObj.register(self.bin_op(self.comp_expr, None, ((TT_KEYWORD, 'AND'), (TT_KEYWORD, 'OR'))))
         if parseResultObj.error:
             return parseResultObj.failure(
                 InvalidSyntaxError("missing numer or paran expr or variable name or keyword", self.currentToken.pos_start, self.currentToken.pos_end)
             )
         return parseResultObj.success(node)
+        
 
     def comp_expr(self):
-        return self.bin_op(self.arith_expr, None, (TT_LT, TT_LTE, TT_GT, TT_GTE, TT_NE))
+        parseResultObj = ParseResult()
+        if self.currentToken.matches(TT_KEYWORD, 'NOT'):
+            op_tok = self.currentToken
+
+            parseResultObj.register_advancement()
+            self.advance()
+
+            node = parseResultObj.register(self.comp_expr())
+            if parseResultObj.error:
+                return parseResultObj
+            return parseResultObj.success(UnaryNode(op_tok, node))
+        return self.bin_op(self.arith_expr, None, (TT_LT, TT_LTE, TT_GT, TT_GTE, TT_NE, TT_EE))
     
     def arith_expr(self):
         return self.bin_op(self.term, None, (TT_PLUS, TT_MINUS))
@@ -518,7 +530,7 @@ class Parser:
         leftNode = parseResultObj.register(funcA())
         if parseResultObj.error:
             return parseResultObj
-        while self.currentToken.type in opTokens:
+        while self.currentToken.type in opTokens or (self.currentToken.type, self.currentToken.value) in opTokens:
             op_token = self.currentToken
             parseResultObj.register_advancement()
             self.advance()
