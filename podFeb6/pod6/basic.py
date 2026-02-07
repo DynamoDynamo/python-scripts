@@ -674,6 +674,15 @@ class PNumber:
     def doubleEquals(self, other):
         return PNumber(int(self.number == other.number)).set_context(self.context), None
     
+    def notted(self):
+        return PNumber(1 if self.number == 0 else 0).set_context(self.context), None
+    
+    def andOp(self, other):
+        return PNumber(int(self.number and other.number)).set_context(self.context), None
+    
+    def orOp(self, other):
+        return PNumber(int(self.number or other.number)).set_context(self.context), None
+    
 
 class Interpreter:
 
@@ -723,6 +732,10 @@ class Interpreter:
             number, error = leftNumber.notEqualTo(rightNumber)
         elif op_token_type == TT_EE:
             number, error = leftNumber.doubleEquals(rightNumber)
+        elif node.op_token.matches(TT_KEYWORD, 'AND'):
+            number, error = leftNumber.andOp(rightNumber)
+        elif node.op_token.matches(TT_KEYWORD, 'OR'):
+            number, error = leftNumber.orOp(rightNumber)
 
         if error:
             return irObj.failure(error)
@@ -738,6 +751,8 @@ class Interpreter:
 
         if op_token_type == TT_MINUS:
             number,error = rightNumber.multedTo(PNumber(-1))
+        elif node.op_token.matches(TT_KEYWORD, 'NOT'):
+            number, error = rightNumber.notted()
 
         if error:
             irObj.failure(error)
