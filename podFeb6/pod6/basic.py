@@ -656,6 +656,24 @@ class PNumber:
     def poweredBy(self, other):
         return PNumber(self.number ** other.number).set_context(self.context), None
     
+    def lessThan(self, other):
+        return PNumber(int(self.number < other.number)).set_context(self.context), None
+    
+    def lessThanEqual(self, other):
+        return PNumber(int(self.number <= other.number)).set_context(self.context), None
+    
+    def greaterThan(self, other):
+        return PNumber(int(self.number > other.number)).set_context(self.context), None
+    
+    def greaterThanEqual(self, other):
+        return PNumber(int(self.number >= other.number)).set_context(self.context), None
+    
+    def notEqualTo(self, other):
+        return PNumber(int(self.number != other.number)).set_context(self.context), None
+    
+    def doubleEquals(self, other):
+        return PNumber(int(self.number == other.number)).set_context(self.context), None
+    
 
 class Interpreter:
 
@@ -693,6 +711,18 @@ class Interpreter:
             number, error = leftNumber.dividedBy(rightNumber)
         elif op_token_type == TT_POW:
             number, error = leftNumber.poweredBy(rightNumber)
+        elif op_token_type == TT_LT:
+            number, error = leftNumber.lessThan(rightNumber)
+        elif op_token_type == TT_LTE:
+            number, error = leftNumber.lessThanEqual(rightNumber)
+        elif op_token_type == TT_GT:
+            number, error = leftNumber.greaterThan(rightNumber)
+        elif op_token_type == TT_GTE:
+            number, error = leftNumber.greaterThanEqual(rightNumber)
+        elif op_token_type == TT_NE:
+            number, error = leftNumber.notEqualTo(rightNumber)
+        elif op_token_type == TT_EE:
+            number, error = leftNumber.doubleEquals(rightNumber)
 
         if error:
             return irObj.failure(error)
