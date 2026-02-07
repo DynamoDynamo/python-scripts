@@ -20,6 +20,16 @@ from strings_with_arrows import *
 #TASK: override the error for expressions like '*' and 5 +VAR d = 5
 
 #TASK: tokenize ==, !=, <, <=, >, >=, AND, OR, NOT
+
+#TASK: parse comparision operators
+
+#TASK: parse NOT
+
+#TASK: parse AND, OR
+
+#TASK: edit the errors
+
+#TASK: interpreter logic for comparision operators
 ###########
 #TOKENS
 ###########
@@ -501,7 +511,7 @@ class Parser:
         node =  parseResultObj.register(self.bin_op(self.comp_expr, None, ((TT_KEYWORD, 'AND'), (TT_KEYWORD, 'OR'))))
         if parseResultObj.error:
             return parseResultObj.failure(
-                InvalidSyntaxError("missing numer or paran expr or variable name or keyword", self.currentToken.pos_start, self.currentToken.pos_end)
+                InvalidSyntaxError("missing numer or paran expr or variable name or AND/OR", self.currentToken.pos_start, self.currentToken.pos_end)
             )
         return parseResultObj.success(node)
         
@@ -518,7 +528,16 @@ class Parser:
             if parseResultObj.error:
                 return parseResultObj
             return parseResultObj.success(UnaryNode(op_tok, node))
-        return self.bin_op(self.arith_expr, None, (TT_LT, TT_LTE, TT_GT, TT_GTE, TT_NE, TT_EE))
+        node =  parseResultObj.register(
+            self.bin_op(self.arith_expr, None, (TT_LT, TT_LTE, TT_GT, TT_GTE, TT_NE, TT_EE))
+        )
+
+        if parseResultObj.error:
+            return parseResultObj.failure(
+                InvalidSyntaxError("missing comparision operator/expression or logical NOT", self.currentToken.pos_start, self.currentToken.pos_end)
+            )
+        
+        return parseResultObj.success(node)
     
     def arith_expr(self):
         return self.bin_op(self.term, None, (TT_PLUS, TT_MINUS))
