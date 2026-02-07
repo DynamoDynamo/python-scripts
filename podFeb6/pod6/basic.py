@@ -498,12 +498,18 @@ class Parser:
             if parseResultObj.error:
                 return parseResultObj
             return parseResultObj.success(VarAssignNode(var_name_token, node))
-        node =  parseResultObj.register(self.bin_op(self.term, None, (TT_PLUS, TT_MINUS)))
+        node =  parseResultObj.register(self.comp_expr())
         if parseResultObj.error:
             return parseResultObj.failure(
                 InvalidSyntaxError("missing numer or paran expr or variable name or keyword", self.currentToken.pos_start, self.currentToken.pos_end)
             )
         return parseResultObj.success(node)
+
+    def comp_expr(self):
+        return self.bin_op(self.arith_expr, None, (TT_LT, TT_LTE, TT_GT, TT_GTE, TT_NE))
+    
+    def arith_expr(self):
+        return self.bin_op(self.term, None, (TT_PLUS, TT_MINUS))
     
     def bin_op(self, funcA, funcB, opTokens):
         if funcB == None:
