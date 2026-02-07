@@ -792,6 +792,9 @@ class Interpreter:
 ##########
 
 global_var_value_table = VarValueTable()
+global_var_value_table.set("NULL", PNumber(0))
+global_var_value_table.set("TRUE", PNumber(1))
+global_var_value_table.set("FALSE", PNumber(0))
 
 
 def run(userInput, fileName):
