@@ -778,6 +778,9 @@ class PNumber:
     def orOp(self, other):
         return PNumber(int(self.number or other.number)).set_context(self.context), None
     
+    def is_true(self):
+        return self.number != 0
+    
 
 class Interpreter:
 
@@ -878,6 +881,28 @@ class Interpreter:
 
         context.var_value_table.set(var_name_token.value, pNumber)
         return irObj.success(pNumber.set_pos(node.pos_start, node.pos_end))
+    
+    def visit_IfNode(self, node, context):
+        irObj = InterpreterResult()
+        elseCase = node.else_case
+        cases = node.cases
+
+        for cond, expr in cases:
+            cond_value = irObj.register(self.visit(cond, context))
+            if irObj.error:
+                return irObj
+            if cond_value.is_true():
+                result = irObj.register(self.visit(expr, context))
+                if irObj.error:
+                    return irObj
+                return irObj.success(result)
+        if elseCase:
+            result = irObj.register(self.visit(elseCase, context))
+            if irObj.error:
+                return irObj
+            return irObj.success(result)
+        return irObj.success(None)
+
 
     def no_visit_method(self, node, context):
         raise Exception(f"there is no method named visit_{type(node).__name__} in interpreter")
