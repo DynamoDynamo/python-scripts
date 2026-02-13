@@ -30,6 +30,10 @@ from strings_with_arrows import *
 #TASK: edit the errors
 
 #TASK: interpreter logic for comparision operators
+
+#POD6
+
+#TASK: Tokenize IF, THEN, ELSE, ELIF keywords
 ###########
 #TOKENS
 ###########
@@ -65,7 +69,11 @@ KEYWORDS = [
     'VAR',
     'AND',
     'OR',
-    'NOT'
+    'NOT', 
+    'IF', 
+    'ELSE', 
+    'THEN', 
+    'ELIF'
 ]
 
 
@@ -383,6 +391,22 @@ class VarAccessNode:
     def __repr__(self):
         return f'({self.var_name_token})'
     
+class IfNode:
+    def __init__(self, cases, else_case):
+        self.cases = cases
+        self.else_case = else_case
+
+        self.pos_start = self.cases[0][0].pos_start
+        lastElement = self.cases[len(self.cases) - 1][0]
+        self.pos_end = (self.else_case or lastElement).pos_start
+
+    def __repr__(self):
+        ifStat = '\n'
+        for cond, expr in self.cases:
+            ifStat += f'If: {cond}, Result: {expr}\n'
+        ifStat += f'Else: {self.else_case}'
+        return ifStat
+    
 ############
 #ParseResult
 ############
@@ -428,6 +452,72 @@ class Parser:
         self.index += 1
         self.currentToken = self.tokens[self.index] if self.index < len(self.tokens) else None
 
+    def ifExpr(self):
+        #create parseResultObj
+        parseResultObj = ParseResult()
+        cases = []
+        else_case = None
+
+        
+        parseResultObj.register_advancement()
+        self.advance()
+
+        #find the condition for if
+        ifCondition = parseResultObj.register(self.expr())
+        if parseResultObj.error:
+            return parseResultObj
+        
+        #next should be THEN keyword, if not return error
+        if not self.currentToken.matches(TT_KEYWORD, 'THEN'):
+            return parseResultObj.failure(
+                InvalidSyntaxError("required THEN keyword", self.currentToken.pos_start, self.currentToken.pos_end)
+            )
+        parseResultObj.register_advancement()
+        self.advance()
+
+        expr = parseResultObj.register(self.expr())
+        if parseResultObj.error:
+            return parseResultObj
+        cases.append((ifCondition, expr))
+
+        while self.currentToken.matches(TT_KEYWORD, 'ELIF'):
+            #advance
+            parseResultObj.register_advancement()
+            self.advance()
+
+            #get the elif cond
+            elifCond = parseResultObj.register(self.expr())
+            if parseResultObj.error:
+                return parseResultObj
+            
+            if not self.currentToken.matches(TT_KEYWORD, 'THEN'):
+                return parseResultObj.failure(
+                    InvalidSyntaxError(
+                        "Expected THEN keyword", self.currentToken.pos_start, self.currentToken.pos_end
+                    )
+                )
+            #if there is THEN keyword, advance
+            parseResultObj.register_advancement()
+            self.advance()
+
+            thenExpr = parseResultObj.register(self.expr())
+            if parseResultObj.error:
+                return parseResultObj
+            
+            #append condition+result
+            cases.append((elifCond, thenExpr))
+
+        if self.currentToken.matches(TT_KEYWORD, 'ELSE'):
+            #advance
+            parseResultObj.register_advancement()
+            self.advance()
+
+            else_case = parseResultObj.register(self.expr())
+            if parseResultObj.error:
+                return parseResultObj
+        return parseResultObj.success(IfNode(cases, else_case))
+        
+
     def atom(self):
         #return numberNode
         currentToken = self.currentToken
@@ -453,6 +543,11 @@ class Parser:
                 return expr
             else:
                 return parseResultObj.failure(InvalidSyntaxError("missing ')' right paran", self.currentToken.pos_start, self.currentToken.pos_end))
+        elif currentToken.matches(TT_KEYWORD, 'IF'):
+            if_expr = parseResultObj.register(self.ifExpr())
+            if parseResultObj.error:
+                return parseResultObj
+            return parseResultObj.success(if_expr)
         else:
             return parseResultObj.failure(InvalidSyntaxError("missing number or parnthesis expr or variable name", currentToken.pos_start, currentToken.pos_end))
             

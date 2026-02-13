@@ -119,3 +119,9 @@ NOT (comp_expr)
 
 AND, OR
 (comp_expr) AND/OR (comp_expr)
+
+# targetted if statement 
+
+VAR age = 50
+VAR something = if age >= 81 then 'old' else 'young'
+VAR something = 'old' if age >=81 else 'young'
