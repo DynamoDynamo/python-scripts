@@ -9,4 +9,8 @@ while True:
     if userInput.lower() == 'exit':
         sys.exit("See you soon")
 
-    print(basic.run(userInput))
+    result, error = basic.run(userInput, 'Sanskrit.ba')
+    if error:
+        print(error)
+    else:
+        print(result)
