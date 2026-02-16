@@ -1,0 +1,47 @@
+
+Make your own programming language - CodePulse
+
+[योगः]
+[योगः, वियोगः, गुणनम्, उद्घाटककोष्टकम्, समापककोष्टकम्, घातः]
+
+string - sequence of characters - श्रृंखला (series/chain)
+input - निवेशः
+userinput - उपयोक्तृनिवेशः
+index - सूचिका
+currentChar -वर्तमानाक्षरम्/सूचिताक्षरम्/निर्दिष्टाक्षरम्
+'0123456789' - संख्या
+DOT - बिन्दु = '.'
++ = 'योग:'
+- = 'वियोग:'
+* = 'गुणनम्'
+/ = 'भाग:'
+( = 'उद्घाटककोष्टकम्'
+) = 'समापककोष्टकम्'
+INT = "पूर्णाङ्क:"
+FLOAT = "दशमिक:" 
+^ = "घात:"
+
+EOF = 'सन्चिकान्त:'
+
+#TASK: tokonize input (mathematical input)
+
+3 + 4.4 / 7 * (5 ^ 2)
+
+roman script/english:
+[INT:3, PLUS, FLOAT:4.4, DIV, INT:7, MUL, LPAREN, INT:5, POW, INT:2, RPAREN, EOF]
+
+devanigiri script/sanskrit:
+[पूर्णाङ्क:-3, योग:, दशमिक:-4, भाग:, पूर्णाङ्क:-7, गुणनम्, उद्घाटककोष्टकम्, पूर्णाङ्क:-5, घात:, पूर्णाङ्क:-2, समापककोष्टकम्, सन्चिकान्त:]
+[पूर्णाङ्क:-3, योगः, दशमिकः-4.4, भागः, पूर्णाङ्क:-7, गुणनम्, उद्घाटककोष्टकम्, पूर्णाङ्क:-5, घातः, पूर्णाङ्क:-2, समापककोष्टकम्, सन्चिकान्त:]
+
+Parser - Abastract syntax tree - assigns structure, priority
+(INT:333, PLUS, ((FLOAT:477.4, DIV, INT:7), MUL, (INT:5, POW, INT:2)))
+          (+)
+         /   \
+      3.0     (*)
+             /   \
+           (/)    (^)
+          /   \   /  \
+        4.4   7  5    2
+
+
