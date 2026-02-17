@@ -199,13 +199,7 @@ class Parser:
                 return exprNode
             
     def power(self):
-        leftNode = self.atom()
-        while self.currentToken.type in (TT_POW,):
-            op_token = self.currentToken
-            self.advance()
-            rightNode = self.factor()
-            leftNode = BinaryNode(leftNode, op_token, rightNode)
-        return leftNode
+        return self.bin_op(self.atom, (TT_POW,), self.factor)
     
     def factor(self):
         while self.currentToken.type in (TT_PLUS, TT_MINUS):
@@ -216,20 +210,19 @@ class Parser:
         return self.power()
     
     def term(self):
-        leftNode = self.factor()
-        while self.currentToken.type in (TT_MUL, TT_DIV):
-            op_token = self.currentToken
-            self.advance()
-            rightNode = self.power()
-            leftNode = BinaryNode(leftNode, op_token, rightNode)
-        return leftNode
+        return self.bin_op(self.factor, (TT_MUL, TT_DIV))
     
     def expr(self):
-        leftNode = self.term()
-        while self.currentToken.type in (TT_PLUS, TT_MINUS):
+        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+    
+    def bin_op(self, funcA, opTokens, funcB = None):
+        if funcB == None:
+            funcB = funcA
+        leftNode = funcA()
+        while self.currentToken.type in opTokens:
             op_token = self.currentToken
             self.advance()
-            rightNode = self.term()
+            rightNode = funcB()
             leftNode = BinaryNode(leftNode, op_token, rightNode)
         return leftNode
         
