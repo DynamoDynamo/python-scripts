@@ -1,5 +1,6 @@
 # TASK: Tokenize input
 # TASK: error for input that doesn't have tokens
+# TASK: create abstract syntax tree 
 
 
 from strings_with_arrows import *
@@ -144,9 +145,105 @@ class Lexer:
             return Token(TT_FLOAT, float(numStr))
         return Token(TT_INT, int(numStr))
     
+##########
+#NODE
+##########
+
+class NumberNode:
+    def __init__(self, numberToken):
+        self.numberToken = numberToken
+
+    def __repr__(self):
+        return f'{self.numberToken}'
+
+class BinaryNode:
+    def __init__(self, leftNode, op_token, rightNode):
+        self.leftNode = leftNode
+        self.op_token = op_token
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.leftNode}, {self.op_token}, {self.rightNode})'
+
+class UnaryNode:
+    def __init__(self, op_token, rightNode):
+        self.op_token = op_token
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.op_token}, {self.rightNode})'
+    
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.index = -1
+        self.currentToken = None
+        self.advance()
+    
+    def advance(self):
+        self.index += 1
+        self.currentToken = self.tokens[self.index] if self.index < len(self.tokens) else None
+    
+    def atom(self):
+        token = self.currentToken
+
+        if token.type in (TT_INT, TT_FLOAT):
+            self.advance()
+            return NumberNode(token)
+        elif token.type == TT_LPAREN:
+            self.advance()
+            exprNode = self.expr()
+            if self.currentToken.type == TT_RPAREN:
+                self.advance()
+                return exprNode
+            
+    def power(self):
+        leftNode = self.atom()
+        while self.currentToken.type in (TT_POW,):
+            op_token = self.currentToken
+            self.advance()
+            rightNode = self.factor()
+            leftNode = BinaryNode(leftNode, op_token, rightNode)
+        return leftNode
+    
+    def factor(self):
+        while self.currentToken.type in (TT_PLUS, TT_MINUS):
+            op_token = self.currentToken
+            self.advance()
+            rightNode = self.factor()
+            return UnaryNode(op_token, rightNode)
+        return self.power()
+    
+    def term(self):
+        leftNode = self.factor()
+        while self.currentToken.type in (TT_MUL, TT_DIV):
+            op_token = self.currentToken
+            self.advance()
+            rightNode = self.power()
+            leftNode = BinaryNode(leftNode, op_token, rightNode)
+        return leftNode
+    
+    def expr(self):
+        leftNode = self.term()
+        while self.currentToken.type in (TT_PLUS, TT_MINUS):
+            op_token = self.currentToken
+            self.advance()
+            rightNode = self.term()
+            leftNode = BinaryNode(leftNode, op_token, rightNode)
+        return leftNode
+        
+    def parser(self):
+        return self.expr()
+    
 ############
 #RUN
 ############
 def run(userInput, fileName):
     lexerInstance = Lexer(userInput, fileName)
-    return lexerInstance.makeTokens()
+    tokens, error =  lexerInstance.makeTokens()
+    if error:
+        return None, error
+    parserInstance = Parser(tokens)
+    print(f'tokens: {tokens}')
+    return parserInstance.parser(), None
