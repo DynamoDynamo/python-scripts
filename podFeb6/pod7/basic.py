@@ -293,7 +293,12 @@ class Parser:
         return parseResultObj.success(leftNode)
         
     def parser(self):
+        parseResultObj = ParseResult()
         expr = self.expr()
+        if self.currentToken.type != TT_EOF and not expr.error:
+            return parseResultObj.failure(
+                InvalidSyntaxError("Expected a math symbol", self.currentToken.pos_start, self.currentToken.pos_end)
+            )
         return expr
     
 ############
