@@ -249,6 +249,10 @@ class Parser:
                 return parseResultObj.failure(
                     InvalidSyntaxError("required ')' right paran", self.currentToken.pos_start, self.currentToken.pos_end)
                 )
+        else:
+            return parseResultObj.failure(
+                InvalidCharError("required number or math symbol or paranExpr", token.pos_start, token.pos_end)
+            )
 
             
     def power(self):
