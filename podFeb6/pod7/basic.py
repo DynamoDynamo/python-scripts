@@ -2,6 +2,7 @@
 # TASK: error for input that doesn't have tokens
 # TASK: create abstract syntax tree 
 # TASK: error for missing tokens in AST
+# TASK: calculate expression
 
 
 from strings_with_arrows import *
@@ -301,6 +302,57 @@ class Parser:
             )
         return expr
     
+
+############
+#INTERPRETER
+############
+
+class PNumber:
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return f'{self.value}'
+    
+    def addTo(self, other):
+        return PNumber(self.value + other.value)
+    
+    def subBy(self, other):
+        return PNumber(self.value - other.value)
+    
+    def mulTo(self, other):
+        return PNumber(self.value * other.value)
+    
+    def divBy(self, other):
+        return PNumber(self.value / other.value)
+
+class Interpreter:
+    def visit_node(self, node):
+        self.node = node
+        typeOfNode = type(self.node).__name__
+        methodName = f'visit_{typeOfNode}'
+        method = getattr(self, methodName, self.no_visit_method)
+        return method(node)
+    
+    def visit_UnaryNode(self, node):
+        print(f'visit_unary{node}')
+        op_token = node.op_token
+        self.visit_node(node.rightNode)
+
+    def visit_BinaryNode(self, node):
+        print(f'visit_Binary{node}')
+        op_token = node.op_token
+        leftNode = node.leftNode
+        rightNode = node.rightNode
+        self.visit_node(leftNode)
+        self.visit_node(rightNode)
+
+    def visit_NumberNode(self, node):
+        print(f'visit_number{node.numberToken}')
+
+    def no_visit_method(self, node):
+        raise Exception(f' there is no visit method for this node: {node}')
+    
 ############
 #RUN
 ############
@@ -312,4 +364,11 @@ def run(userInput, fileName):
     parserInstance = Parser(tokens)
     print(f'tokens: {tokens}')
     ast = parserInstance.parser()
+
+    if ast.error:
+        return None, ast.error
+    
+    interPreter = Interpreter()
+    interPreter.visit_node(ast.node)
+
     return ast.node, ast.error
