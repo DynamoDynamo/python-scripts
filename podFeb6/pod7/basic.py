@@ -325,6 +325,9 @@ class PNumber:
     
     def divBy(self, other):
         return PNumber(self.value / other.value)
+    
+    def powBy(self, other):
+        return PNumber(self.value ** other.value)
 
 class Interpreter:
     def visit_node(self, node):
@@ -337,18 +340,39 @@ class Interpreter:
     def visit_UnaryNode(self, node):
         print(f'visit_unary{node}')
         op_token = node.op_token
-        self.visit_node(node.rightNode)
+        pNumber = self.visit_node(node.rightNode)
+
+        if op_token.type == TT_MINUS:
+            return pNumber.mulTo(PNumber(-1))
+        return pNumber
 
     def visit_BinaryNode(self, node):
         print(f'visit_Binary{node}')
         op_token = node.op_token
         leftNode = node.leftNode
         rightNode = node.rightNode
-        self.visit_node(leftNode)
-        self.visit_node(rightNode)
+        leftNumber = self.visit_node(leftNode)
+        rightNumber = self.visit_node(rightNode)
+        opTokenType = op_token.type
+        result = None
+
+        if opTokenType == TT_MINUS:
+            result = leftNumber.subBy(rightNumber)
+        elif opTokenType == TT_PLUS:
+             result = leftNumber.addTo(rightNumber)
+        elif opTokenType == TT_MUL:
+             result = leftNumber.mulTo(rightNumber)
+        elif opTokenType == TT_DIV:
+             result = leftNumber.divBy(rightNumber)
+        elif opTokenType == TT_POW:
+             result = leftNumber.powBy(rightNumber)
+
+        return result
+        
 
     def visit_NumberNode(self, node):
-        print(f'visit_number{node.numberToken}')
+        numToken = node.numberToken
+        return PNumber(numToken.value)
 
     def no_visit_method(self, node):
         raise Exception(f' there is no visit method for this node: {node}')
@@ -369,6 +393,6 @@ def run(userInput, fileName):
         return None, ast.error
     
     interPreter = Interpreter()
-    interPreter.visit_node(ast.node)
+    result = interPreter.visit_node(ast.node)
 
-    return ast.node, ast.error
+    return result, ast.error
