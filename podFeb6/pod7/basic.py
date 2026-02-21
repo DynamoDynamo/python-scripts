@@ -3,7 +3,7 @@
 # TASK: create abstract syntax tree 
 # TASK: error for missing tokens in AST
 # TASK: calculate expression
-# TASK: calcualte expression with <, <=, >, >=, ==, notted and or
+# TASK: calcualte expression with comparision operators S<, <=, >, >=, ==, !=
 
 
 from strings_with_arrows import *
@@ -87,6 +87,7 @@ TT_LT = 'LT'
 TT_GT = 'GT'
 TT_GE = 'GE'
 TT_LE = 'LE'
+TT_NE = 'NE'
 
 TT_EOF = 'EOF'
 
@@ -160,6 +161,11 @@ class Lexer:
                 tokens.append(self.makeGreaterThanToken())
             elif self.currentChar == '=':
                 tokens.append(self.makeEqualsToken())
+            elif self.currentChar == '!':
+                result, error = self.makeNotEqualsToken()
+                if error:
+                    return None, error
+                tokens.append(result)
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberTokens())
             else:
@@ -196,6 +202,14 @@ class Lexer:
             self.advance()
             tokenType = TT_EE
         return Token(tokenType, pos_start=pos_start, pos_end=self.position)
+    
+    def makeNotEqualsToken(self):
+        pos_start = self.position
+        self.advance()
+        if self.currentChar != None and self.currentChar == '=':
+            self.advance()
+            return Token(TT_NE, pos_start=pos_start, pos_end=self.position), None
+        return None, InvalidCharError("required '=' in !=", pos_start=pos_start, pos_end=self.position)
 
     
     def makeNumberTokens(self):
@@ -326,7 +340,7 @@ class Parser:
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
     
     def compExpr(self):
-        return self.bin_op(self.arith_expr, (TT_LE, TT_LT, TT_GT, TT_GE, TT_EE))
+        return self.bin_op(self.arith_expr, (TT_LE, TT_LT, TT_GT, TT_GE, TT_EE, TT_NE))
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
@@ -386,14 +400,17 @@ class PNumber:
     def lessThanEqual(self, other):
         return PNumber(int(self.value <= other.value))
     
-    def GreaterThan(self, other):
+    def greaterThan(self, other):
         return PNumber(int(self.value > other.value))
     
-    def GreaterThanEqual(self, other):
+    def greaterThanEqual(self, other):
         return PNumber(int(self.value >= other.value))
     
-    def Equals(self, other):
+    def doubleEquals(self, other):
         return PNumber(int(self.value == other.vaue))
+    
+    def notEquals(self, other):
+        return PNumber(int(self.value != other.value))
 
 class Interpreter:
     def visit_node(self, node):
@@ -435,11 +452,13 @@ class Interpreter:
         elif opTokenType == TT_LE:
             result = leftNumber.lessThanEqual(rightNumber)
         elif opTokenType == TT_GT:
-            result = leftNumber.GreaterThan(rightNumber)
+            result = leftNumber.greaterThan(rightNumber)
         elif opTokenType == TT_GE:
-            result = leftNumber.GreaterThanEqual(rightNumber)
+            result = leftNumber.greaterThanEqual(rightNumber)
         elif opTokenType == TT_EE:
-            result = leftNumber.Equals(rightNumber)
+            result = leftNumber.doubleEquals(rightNumber)
+        elif opTokenType == TT_NE:
+            result = leftNumber.notEquals(rightNumber)
 
         return result
         
