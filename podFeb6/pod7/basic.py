@@ -3,6 +3,7 @@
 # TASK: create abstract syntax tree 
 # TASK: error for missing tokens in AST
 # TASK: calculate expression
+# TASK: calcualte expression with <, <=, >, >=, ==, notted and or
 
 
 from strings_with_arrows import *
@@ -78,7 +79,20 @@ TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 TT_POW = 'POW'
 
+TT_EQUALS = 'EQUALS'
+
+TT_EE = 'EE'
+TT_NE = 'NE'
+TT_LT = 'LT'
+TT_GT = 'GT'
+TT_GE = 'GE'
+TT_LE = 'LE'
+
 TT_EOF = 'EOF'
+
+KEYWORDS = [
+    'AND', 'OR', 'NOT'
+]
 
 class Token:
     def __init__(self, type, pos_start, pos_end = None, value = None):
@@ -140,6 +154,12 @@ class Lexer:
             elif self.currentChar == ')':
                 tokens.append(Token(TT_RPAREN, pos_start=self.position))
                 self.advance()
+            elif self.currentChar == '<':
+                tokens.append(self.makeLessThanToken())
+            elif self.currentChar == '>':
+                tokens.append(self.makeGreaterThanToken())
+            elif self.currentChar == '=':
+                tokens.append(self.makeEqualsToken())
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberTokens())
             else:
@@ -149,6 +169,34 @@ class Lexer:
                 return None, InvalidCharError(f"'{currentChar}'", pos_start, self.position)
         tokens.append(Token(TT_EOF, pos_start=self.position))
         return tokens, None
+    
+    def makeGreaterThanToken(self):
+        pos_start = self.position
+        tokenType = TT_GT
+        self.advance()
+        if self.currentChar != None and self.currentChar == '=':
+            self.advance()
+            tokenType = TT_GE
+        return Token(tokenType, pos_start=pos_start, pos_end=self.position)
+    
+    def makeLessThanToken(self):
+        pos_start = self.position
+        tokenType = TT_LT
+        self.advance()
+        if self.currentChar != None and self.currentChar == '=':
+            self.advance()
+            tokenType = TT_LE
+        return Token(tokenType, pos_start=pos_start, pos_end=self.position)
+    
+    def makeEqualsToken(self):
+        pos_start = self.position
+        tokenType = TT_EQUALS
+        self.advance()
+        if self.currentChar != None and self.currentChar == '=':
+            self.advance()
+            tokenType = TT_EE
+        return Token(tokenType, pos_start=pos_start, pos_end=self.position)
+
     
     def makeNumberTokens(self):
         numStr = ''
@@ -239,7 +287,7 @@ class Parser:
             return parseResultObj.success(NumberNode(token))
         elif token.type == TT_LPAREN:
             self.advance()
-            exprNode = parseResultObj.register(self.expr())
+            exprNode = parseResultObj.register(self.compExpr())
             if parseResultObj.error:
                 return parseResultObj
             if self.currentToken.type == TT_RPAREN:
@@ -255,7 +303,7 @@ class Parser:
                 InvalidCharError("required number or math symbol or paranExpr", token.pos_start, token.pos_end)
             )
 
-            
+  
     def power(self):
         return self.bin_op(self.atom, (TT_POW,), self.factor)
     
@@ -274,8 +322,11 @@ class Parser:
     def term(self):
         return self.bin_op(self.factor, (TT_MUL, TT_DIV))
     
-    def expr(self):
+    def arith_expr(self):
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+    
+    def compExpr(self):
+        return self.bin_op(self.arith_expr, (TT_LE, TT_LT, TT_GT, TT_GE, TT_EE))
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
@@ -295,7 +346,7 @@ class Parser:
         
     def parser(self):
         parseResultObj = ParseResult()
-        expr = self.expr()
+        expr = self.compExpr()
         if self.currentToken.type != TT_EOF and not expr.error:
             return parseResultObj.failure(
                 InvalidSyntaxError("Expected a math symbol", self.currentToken.pos_start, self.currentToken.pos_end)
@@ -328,6 +379,21 @@ class PNumber:
     
     def powBy(self, other):
         return PNumber(self.value ** other.value)
+    
+    def lessThan(self, other):
+        return PNumber(int(self.value < other.value))
+    
+    def lessThanEqual(self, other):
+        return PNumber(int(self.value <= other.value))
+    
+    def GreaterThan(self, other):
+        return PNumber(int(self.value > other.value))
+    
+    def GreaterThanEqual(self, other):
+        return PNumber(int(self.value >= other.value))
+    
+    def Equals(self, other):
+        return PNumber(int(self.value == other.vaue))
 
 class Interpreter:
     def visit_node(self, node):
@@ -338,7 +404,6 @@ class Interpreter:
         return method(node)
     
     def visit_UnaryNode(self, node):
-        print(f'visit_unary{node}')
         op_token = node.op_token
         pNumber = self.visit_node(node.rightNode)
 
@@ -347,7 +412,6 @@ class Interpreter:
         return pNumber
 
     def visit_BinaryNode(self, node):
-        print(f'visit_Binary{node}')
         op_token = node.op_token
         leftNode = node.leftNode
         rightNode = node.rightNode
@@ -366,6 +430,16 @@ class Interpreter:
              result = leftNumber.divBy(rightNumber)
         elif opTokenType == TT_POW:
              result = leftNumber.powBy(rightNumber)
+        elif opTokenType == TT_LT:
+            result = leftNumber.lessThan(rightNumber)
+        elif opTokenType == TT_LE:
+            result = leftNumber.lessThanEqual(rightNumber)
+        elif opTokenType == TT_GT:
+            result = leftNumber.GreaterThan(rightNumber)
+        elif opTokenType == TT_GE:
+            result = leftNumber.GreaterThanEqual(rightNumber)
+        elif opTokenType == TT_EE:
+            result = leftNumber.Equals(rightNumber)
 
         return result
         
@@ -393,6 +467,7 @@ def run(userInput, fileName):
         return None, ast.error
     
     interPreter = Interpreter()
+    print(f'node: {ast.node}')
     result = interPreter.visit_node(ast.node)
 
     return result, ast.error
