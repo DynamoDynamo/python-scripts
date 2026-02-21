@@ -2,11 +2,13 @@
 # TASK: error for input that doesn't have tokens
 # TASK: create abstract syntax tree 
 # TASK: error for missing tokens in AST
-# TASK: calculate expression
+# TASK: calculate expression with arithm operators
 # TASK: calcualte expression with comparision operators S<, <=, >, >=, ==, !=
+# TASK: calcuate expression with logical operators
 
 
 from strings_with_arrows import *
+import string
 
 ###########
 #POSITION
@@ -68,6 +70,7 @@ class InvalidSyntaxError(Error):
 
 DIGITS = '0123456789'
 DOT = '.'
+LETTERS = string.ascii_letters
 
 TT_INT = 'INT'
 TT_FLOAT = 'FLOAT'
@@ -88,12 +91,16 @@ TT_GT = 'GT'
 TT_GE = 'GE'
 TT_LE = 'LE'
 TT_NE = 'NE'
+TT_KEYWORD = 'KEYWORD'
+
+TT_IDENTIFIER = "IDENTIFIER"
 
 TT_EOF = 'EOF'
 
 KEYWORDS = [
     'AND', 'OR', 'NOT'
 ]
+
 
 class Token:
     def __init__(self, type, pos_start, pos_end = None, value = None):
@@ -168,6 +175,8 @@ class Lexer:
                 tokens.append(result)
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberTokens())
+            elif self.currentChar in LETTERS:
+                tokens.append(self.makeKeywordOrIdentiferToken())
             else:
                 pos_start = self.position.copy()
                 currentChar = self.currentChar
@@ -175,6 +184,19 @@ class Lexer:
                 return None, InvalidCharError(f"'{currentChar}'", pos_start, self.position)
         tokens.append(Token(TT_EOF, pos_start=self.position))
         return tokens, None
+    
+    def makeKeywordOrIdentiferToken(self):
+        pos_start = self.position
+        word = ''
+        while self.currentChar != None and self.currentChar in LETTERS + DIGITS:
+            word += self.currentChar
+            self.advance()
+        if word in KEYWORDS:
+            tokenType = TT_KEYWORD
+        else:
+            tokenType = TT_IDENTIFIER
+        return Token(tokenType, pos_start=pos_start, pos_end=self.position)
+        
     
     def makeGreaterThanToken(self):
         pos_start = self.position
@@ -211,7 +233,6 @@ class Lexer:
             return Token(TT_NE, pos_start=pos_start, pos_end=self.position), None
         return None, InvalidCharError("required '=' in !=", pos_start=pos_start, pos_end=self.position)
 
-    
     def makeNumberTokens(self):
         numStr = ''
         dotCount = 0
@@ -341,6 +362,7 @@ class Parser:
     
     def compExpr(self):
         return self.bin_op(self.arith_expr, (TT_LE, TT_LT, TT_GT, TT_GE, TT_EE, TT_NE))
+    
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
