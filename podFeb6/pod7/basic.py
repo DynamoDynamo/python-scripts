@@ -118,6 +118,9 @@ class Token:
             return f'{self.type}:{self.value}'
         return f'{self.type}'
     
+    def matches(self, type, value):
+        return  self.type == type and self.value == value
+    
 ########
 # LEXER - tokenizes input
 ########
@@ -195,7 +198,7 @@ class Lexer:
             tokenType = TT_KEYWORD
         else:
             tokenType = TT_IDENTIFIER
-        return Token(tokenType, pos_start=pos_start, pos_end=self.position)
+        return Token(tokenType, pos_start=pos_start, pos_end=self.position, value=word)
         
     
     def makeGreaterThanToken(self):
@@ -363,6 +366,10 @@ class Parser:
     def compExpr(self):
         return self.bin_op(self.arith_expr, (TT_LE, TT_LT, TT_GT, TT_GE, TT_EE, TT_NE))
     
+
+    def logicalExpr(self):
+        return self.bin_op(self.compExpr, ((TT_KEYWORD, 'NOT'), (TT_KEYWORD, 'AND'), (TT_KEYWORD, 'OR')))
+    
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
@@ -371,7 +378,7 @@ class Parser:
         leftNode = parseResultObj.register(funcA())
         if parseResultObj.error:
             return parseResultObj
-        while self.currentToken.type in opTokens:
+        while self.currentToken.type in opTokens or (self.currentToken.type, self.currentToken.value) in opTokens:
             op_token = self.currentToken
             self.advance()
             rightNode = parseResultObj.register(funcB())
@@ -382,7 +389,7 @@ class Parser:
         
     def parser(self):
         parseResultObj = ParseResult()
-        expr = self.compExpr()
+        expr = self.logicalExpr()
         if self.currentToken.type != TT_EOF and not expr.error:
             return parseResultObj.failure(
                 InvalidSyntaxError("Expected a math symbol", self.currentToken.pos_start, self.currentToken.pos_end)
