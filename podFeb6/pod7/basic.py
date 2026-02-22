@@ -368,8 +368,21 @@ class Parser:
     
 
     def logicalExpr(self):
-        return self.bin_op(self.compExpr, ((TT_KEYWORD, 'NOT'), (TT_KEYWORD, 'AND'), (TT_KEYWORD, 'OR')))
+        return self.bin_op(self.compExpr, ((TT_KEYWORD, 'AND'), (TT_KEYWORD, 'OR')))
     
+    def nottedExpr(self):
+        parseResultObj = ParseResult()
+        if self.currentToken.matches(TT_KEYWORD, 'NOT'):
+            opToken = self.currentToken
+            #advance
+            self.advance()
+
+            #grab logical expression
+            exprNode = parseResultObj.register(self.nottedExpr())
+            if parseResultObj.error:
+                return parseResultObj
+            return parseResultObj.success(UnaryNode(opToken, exprNode))
+        return self.logicalExpr()
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
@@ -389,7 +402,7 @@ class Parser:
         
     def parser(self):
         parseResultObj = ParseResult()
-        expr = self.logicalExpr()
+        expr = self.nottedExpr()
         if self.currentToken.type != TT_EOF and not expr.error:
             return parseResultObj.failure(
                 InvalidSyntaxError("Expected a math symbol", self.currentToken.pos_start, self.currentToken.pos_end)
@@ -440,6 +453,15 @@ class PNumber:
     
     def notEquals(self, other):
         return PNumber(int(self.value != other.value))
+    
+    def andOp(self, other):
+        return PNumber(int(self.value and other.value))
+    
+    def orOp(self, other):
+        return PNumber(int(self.value or other.value))
+    
+    def notted(self):
+        return PNumber(1 if self.value == 0 else 0)
 
 class Interpreter:
     def visit_node(self, node):
@@ -454,8 +476,10 @@ class Interpreter:
         pNumber = self.visit_node(node.rightNode)
 
         if op_token.type == TT_MINUS:
-            return pNumber.mulTo(PNumber(-1))
-        return pNumber
+            result = pNumber.mulTo(PNumber(-1))
+        elif op_token.matches(TT_KEYWORD, 'NOT'):
+            result = pNumber.notted()
+        return result
 
     def visit_BinaryNode(self, node):
         op_token = node.op_token
@@ -488,6 +512,10 @@ class Interpreter:
             result = leftNumber.doubleEquals(rightNumber)
         elif opTokenType == TT_NE:
             result = leftNumber.notEquals(rightNumber)
+        elif op_token.matches(TT_KEYWORD, 'AND'):
+            result = leftNumber.andOp(rightNumber)
+        elif op_token.matches(TT_KEYWORD, 'OR'):
+            result = leftNumber.orOp(rightNumber)
 
         return result
         
