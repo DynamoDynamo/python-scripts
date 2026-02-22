@@ -4,7 +4,8 @@
 # TASK: error for missing tokens in AST
 # TASK: calculate expression with arithm operators
 # TASK: calcualte expression with comparision operators S<, <=, >, >=, ==, !=
-# TASK: calcuate expression with logical operators
+# TASK: calcuate expression with logical operators, AND OR togeter and NOT seperate
+# TASK: calculate VAR expressions
 
 
 from strings_with_arrows import *
@@ -71,6 +72,7 @@ class InvalidSyntaxError(Error):
 DIGITS = '0123456789'
 DOT = '.'
 LETTERS = string.ascii_letters
+UNDERSCORE = '_'
 
 TT_INT = 'INT'
 TT_FLOAT = 'FLOAT'
@@ -98,7 +100,7 @@ TT_IDENTIFIER = "IDENTIFIER"
 TT_EOF = 'EOF'
 
 KEYWORDS = [
-    'AND', 'OR', 'NOT'
+    'AND', 'OR', 'NOT', 'VAR'
 ]
 
 
@@ -191,7 +193,7 @@ class Lexer:
     def makeKeywordOrIdentiferToken(self):
         pos_start = self.position
         word = ''
-        while self.currentChar != None and self.currentChar in LETTERS + DIGITS:
+        while self.currentChar != None and self.currentChar in LETTERS + DIGITS + UNDERSCORE:
             word += self.currentChar
             self.advance()
         if word in KEYWORDS:
@@ -383,6 +385,18 @@ class Parser:
                 return parseResultObj
             return parseResultObj.success(UnaryNode(opToken, exprNode))
         return self.logicalExpr()
+    
+    def variableExpr(self):
+        #TODO: add logic
+        parseResultObj = ParseResult()
+        if self.currentToken.matches(TT_KEYWORD, 'VAR'):
+            self.advance()
+
+            if self.currentToken.type != TT_IDENTIFIER:
+                parseResultObj.failure(
+                    InvalidSyntaxError ("identifier required", pos_start=self.currentToken)
+                
+                )
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
