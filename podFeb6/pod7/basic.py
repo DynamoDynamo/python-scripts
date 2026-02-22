@@ -368,7 +368,7 @@ class Parser:
     
 
     def logicalExpr(self):
-        return self.bin_op(self.compExpr, ((TT_KEYWORD, 'AND'), (TT_KEYWORD, 'OR')))
+        return self.bin_op(self.compExpr, ((TT_KEYWORD, 'AND'), (TT_KEYWORD, 'OR')), self.nottedExpr)
     
     def nottedExpr(self):
         parseResultObj = ParseResult()
