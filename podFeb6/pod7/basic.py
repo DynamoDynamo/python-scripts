@@ -306,7 +306,21 @@ class UnaryNode:
     def __repr__(self):
         return f'({self.op_token}, {self.rightNode})'
     
+class VarAccessNode:
+    def __init__(self, var_name_token):
+        self.var_name = var_name_token
 
+    def __repr__(self):
+        return f'({self.var_name})'
+
+class VarAssignNode:
+    def __init__(self, var_name, var_value_node):
+        self.var_name = var_name
+        self.var_value = var_value_node
+
+    def __repr__(self):
+        return f'({self.var_name}, {self.var_value})'
+    
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -387,16 +401,35 @@ class Parser:
         return self.logicalExpr()
     
     def variableExpr(self):
-        #TODO: add logic
         parseResultObj = ParseResult()
         if self.currentToken.matches(TT_KEYWORD, 'VAR'):
             self.advance()
 
             if self.currentToken.type != TT_IDENTIFIER:
                 parseResultObj.failure(
-                    InvalidSyntaxError ("identifier required", pos_start=self.currentToken)
+                    InvalidSyntaxError ("identifier required", pos_start=self.currentToken.pos_start, pos_end=self.currentToken.pos_end)
+                    )
                 
+            #grab identifier
+            var_name_token = self.currentToken
+            self.advance()
+
+            #if identifier is not followed by EQUALS token, error out
+            if self.currentToken.type != TT_EQUALS:
+                return parseResultObj.failure(
+                    InvalidSyntaxError("'=' symbol expected", self.currentToken.pos_start, self.currentToken.pos_end)
                 )
+            
+            #if it is = advance and grab the variable value
+            self.advance()
+            expr = parseResultObj.register(self.nottedExpr())
+            if parseResultObj.error:
+                return parseResultObj
+            
+            return parseResultObj.success(
+                VarAssignNode(var_name_token, expr)
+            )
+        return self.nottedExpr()
     
     def bin_op(self, funcA, opTokens, funcB = None):
         if funcB == None:
@@ -416,7 +449,7 @@ class Parser:
         
     def parser(self):
         parseResultObj = ParseResult()
-        expr = self.nottedExpr()
+        expr = self.variableExpr()
         if self.currentToken.type != TT_EOF and not expr.error:
             return parseResultObj.failure(
                 InvalidSyntaxError("Expected a math symbol", self.currentToken.pos_start, self.currentToken.pos_end)
@@ -537,9 +570,14 @@ class Interpreter:
     def visit_NumberNode(self, node):
         numToken = node.numberToken
         return PNumber(numToken.value)
+    
+    def  visit_VarAssignNode(self, node):
+        # we need context here, context has table that stores the var value and table
+        # that's why error scenario should be completed before variable scenario
+        pass
 
     def no_visit_method(self, node):
-        raise Exception(f' there is no visit method for this node: {node}')
+        raise Exception(f"there is no method named visit_{type(node).__name__} in interpreter")
     
 ############
 #RUN
