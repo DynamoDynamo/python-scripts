@@ -1,5 +1,11 @@
 #TASK1: Tokenize mathematical input
+    #input: 123 + 456 - / ( ) 23.3
+    #output: [INT:123, PLUS, INT:456, MINUS, DIVISION, LPAREN, RPAREN, FLOAT:23.3]
 #TASK2: construct error for bad input
+    #input: 7 * $$$$$
+    #output:
+        #Illegal Charachter: '$'
+        #File <stdin>, line 1
 
 ##############
 # TOKENS
@@ -39,6 +45,8 @@ class Position:
             self.fileName = fileName
         if text:
             self.text = text
+
+        
 
 
 ############
