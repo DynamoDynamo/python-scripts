@@ -1,7 +1,10 @@
 
 #############
 # TOKENS
-##############
+#############
+from string_with_arrows import string_with_arrows
+
+
 TT_INT = 'INT'
 TT_FLOAT = 'FLOAT'
 
@@ -26,21 +29,67 @@ class Token:
             return f'{self.type}:{self.value}' # INT:1, FLOAT:3.3
         return f'{self.type}' #LPAREN, DIV
 
+##############
+#ERROR
+#############
+class Error:
+    def __init__(self, errorName, errorDetails, pos_start, pos_end):
+        self.name = errorName
+        self.details = errorDetails
+        self.pos_start = pos_start
+        self.pos_end = pos_end
+
+    def __repr__(self):
+        result = f'{self.name}: {self.details}\n'
+        result += f'File {self.pos_start.fn}, line {self.pos_start.ln + 1}\n'
+        result += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+        return result
+
+class IllegalCharError(Error):
+
+    def __init__(self, errorDetails, pos_start, pos_end):
+        super().__init__("IllegalCharError", errorDetails, pos_start, pos_end)
+
+########
+#POSITION - Captures position of charachter from a single line or multiple lines
+############
+
+class Position:
+    def __init__(self, ln, col, index, fn, ftxt):
+        self.ln = ln
+        self.col = col
+        self.idx = index
+        self.fn = fn
+        self.ftxt = ftxt
+
+    def advance(self, currentChar = None):
+        self.idx += 1
+        self.col += 1
+
+        if currentChar == '\n':
+            self.ln += 1
+            self.col = 0
+
+        return self
+
+    def copy(self):
+        return Position(self.ln, self.col, self.idx, self.fn, self.ftxt)
 
 ########
 #LEXER - LOGIC TO MAKE TOKENS
 ############
 
 class Lexer:
-    def __init__(self, userInput):
+    def __init__(self, userInput, fileName):
         self.userInput = userInput
+        self.fn = fileName
         self.currentChar = None
-        self.charIndex = -1
+        self.position = Position(0, -1, -1, fileName, userInput)
         self.advance()
 
     def advance(self):
-        self.charIndex += 1
-        self.currentChar = self.userInput[self.charIndex] if self.charIndex < len(self.userInput) else None
+        self.position.advance(self.currentChar)
+        self.currentChar = self.userInput[self.position.idx] if self.position.idx < len(self.userInput) else None
 
     def makeTokens(self):
 
@@ -48,7 +97,7 @@ class Lexer:
 
         while self.currentChar != None:
             #store tokens in tokensArray
-            if self.currentChar in '\t ':
+            if self.currentChar in '\n\t ':
                 self.advance()
             elif self.currentChar == '+':
                 tokens.append(Token(TT_PLUS))
@@ -72,7 +121,9 @@ class Lexer:
                 tokens.append(self.makeNumberTokens())
             else:
                 #error scenario
-                return None, 'errorScenario'
+                pos_start = self.position.copy()
+                currentChar = self.currentChar
+                return None, IllegalCharError(currentChar, pos_start, self.position.advance()) #errorName:errorMsg
         return tokens, None
 
     def makeNumberTokens(self):
@@ -84,7 +135,6 @@ class Lexer:
                 if dot_count == 1:
                     break
                 dot_count += 1
-            print(self.currentChar)
             num_str += self.currentChar
             self.advance()
 
@@ -99,8 +149,8 @@ class Lexer:
 #RUN
 #################
 
-def run(userInput):
+def run(userInput, fileName):
     #send the input to Lexer and get the tokens
-    lexerInstance = Lexer(userInput)
+    lexerInstance = Lexer(userInput, fileName)
     tokens,error = lexerInstance.makeTokens()
     return tokens, error
