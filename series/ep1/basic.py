@@ -3,17 +3,24 @@
 #ERROR
 ###############
 
+from string_with_arrows import string_with_arrows
+
 class Error:
-    def __init__(self, errorType, errorDetails):
+    def __init__(self, errorType, errorDetails, pos_start, pos_end):
         self.type = errorType
         self.details = errorDetails
+        self.pos_start = pos_start
+        self.pos_end = pos_end
 
     def __repr__(self):
-        return f'{self.type}:{self.details}'
+        errMsg =  f'{self.type}:{self.details}\n'
+        errMsg += f'File {self.pos_start.fn}, line {self.pos_start.ln + 1}\n'
+        errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+        return errMsg
 
 class IllegalCharacterError(Error):
-    def __init__(self, errorDetails):
-        super().__init__("IllegalCharacterError", errorDetails)
+    def __init__(self, errorDetails, pos_start, pos_end):
+        super().__init__('IllegalCharacterError', errorDetails, pos_start, pos_end)
 ##############
 #TOKENS
 ###############
@@ -44,25 +51,50 @@ class Token:
             return f'{self.type}' #PLUS,MINUS
 
 #####################
+# Position
+####################
+
+class Position:
+    def __init__(self, line, column, index, fileName, fileContent):
+        self.ln = line
+        self.col = column
+        self.idx =index
+        self.fn = fileName
+        self.ftxt = fileContent
+
+    def advance(self, currentChar = None):
+        self.idx += 1
+        self.col += 1
+
+        if(currentChar == '\n'):
+            self.ln += 1
+            self.col = 0
+
+        return self
+
+    def copy(self):
+        return Position(self.ln, self.col, self.idx, self.fn, self.ftxt)
+
+#####################
 # LEXER - to convert useriNput to tokens
 ####################
 
 class Lexer:
-    def __init__(self, userInput):
+    def __init__(self, userInput, fileName):
         self.userInput = userInput
-        self.index = -1
+        self.position = Position(0, -1, -1, fileName, userInput)
         self.currentChar = None
         self.advance()
 
     def advance(self):
-        self.index += 1
-        self.currentChar = self.userInput[self.index] if self.index < len(self.userInput) else None
+        self.position.advance(self.currentChar)
+        self.currentChar = self.userInput[self.position.idx] if self.position.idx < len(self.userInput) else None
 
     def makeTokens(self):
         tokens = []
 
         while self.currentChar != None:
-            if self.currentChar in ' \t':
+            if self.currentChar in ' \t\n':
                 self.advance()
             elif self.currentChar == '+':
                 tokens.append(Token(TT_PLUS))
@@ -86,7 +118,9 @@ class Lexer:
                 tokens.append(self.makeNumberToken())
             else:
                 #ERROR SCENARIO
-                return None, IllegalCharacterError(self.currentChar)
+                pos_start = self.position.copy()
+                currentChar = self.currentChar
+                return None, IllegalCharacterError(currentChar, pos_start, self.position.advance())
         return tokens, None
 
     def makeNumberToken(self):
@@ -109,6 +143,6 @@ class Lexer:
 #RUN
 ###############
 
-def run(userInput):
-    lexerInstance = Lexer(userInput)
+def run(userInput, fileName):
+    lexerInstance = Lexer(userInput, fileName)
     return lexerInstance.makeTokens()
