@@ -44,12 +44,18 @@ The calculation is the job of the Interpreter.
 **Term:** -  Factors combined using multiplication or division operator   
 **Expression:** -  Terms combined using addition or subtraction operators, forming the complete mathematical input.
 
-Example: 3 + 5 * 7 = 3 + (5 * 7)  
+```
+FACTOR ( * / ) FACTOR  →  TERM
+TERM ( + - )  TERM  →  EXPRESSION
+````
+
+**Example:** 3 + 5 * 7 = 3 + (5 * 7)  
 3, 5, 7 are factors  
 5 * 7 is a term  
 3 is both factor and a term  
 3 + (5 * 7) is a valid expression  
 
-Example: 3 + 7  
+**Example:** 3 + 7  
 3, 7 are both terms and factors  
-3 + 7 is a valid expression  
+3 + 7 is a valid expression 
+
