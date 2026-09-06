@@ -144,7 +144,65 @@ class Lexer:
         else:
             return Token(TT_INT, int(num_str))
 
+############
+#Nodes
+#################
+class NumberNode:
+    def __init__(self, token):
+        self.token = token
 
+    def __repr__(self):
+        return f'{self.token}' #
+
+class BinaryOpNode:
+    def __init__(self, leftNode, opToken, rightNode):
+        self.leftNode = leftNode
+        self.opToken = opToken
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.leftNode} {self.opToken} {self.rightNode})'
+
+############
+#Parser
+#################
+
+class Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.currentToken = None
+        self.tokenIndex = -1
+        self.advance()
+
+    def advance(self):
+        self.tokenIndex += 1
+        self.currentToken = self.tokens[self.tokenIndex] if self.tokenIndex < len(self.tokens) else None
+        return self.currentToken
+
+    def factor(self):
+        token = self.currentToken
+        if token.type in (TT_INT, TT_FLOAT):
+            self.advance()
+            return NumberNode(token)
+
+    def term(self):
+        return self.binaryOperation(self.factor, (TT_MUL, TT_DIV))
+
+    def expression(self):
+        return self.binaryOperation(self.term, (TT_PLUS, TT_MINUS))
+
+    def binaryOperation(self, method, operatorTokens):
+        leftNode = method()
+        while self.currentToken != None and self.currentToken.type in operatorTokens:
+            opToken = self.currentToken
+            self.advance()
+            rightNode = method()
+            leftNode = BinaryOpNode(leftNode, opToken, rightNode)
+        return leftNode
+
+    def parse(self):
+        return self.expression(), None
+    
 ############
 #RUN
 #################
@@ -153,4 +211,11 @@ def run(userInput, fileName):
     #send the input to Lexer and get the tokens
     lexerInstance = Lexer(userInput, fileName)
     tokens,error = lexerInstance.makeTokens()
-    return tokens, error
+
+    if error:
+        return None, error
+
+    #send tokens to Parser to generate Abstract Syntax Tree
+    print(tokens)
+    parserInstance = Parser(tokens)
+    return parserInstance.parse()
