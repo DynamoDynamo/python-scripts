@@ -21,6 +21,10 @@ class Error:
 class IllegalCharacterError(Error):
     def __init__(self, errorDetails, pos_start, pos_end):
         super().__init__('IllegalCharacterError', errorDetails, pos_start, pos_end)
+
+class InvalidSyntaxError(Error):
+    def __init__(self, errorDetails, pos_start, pos_end):
+        super().__init__('InvalidSyntaxError', errorDetails, pos_start, pos_end)
 ##############
 #TOKENS
 ###############
@@ -39,10 +43,20 @@ TT_DIV = 'DIV'
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 
+TT_EOF = 'EOF'
+
 class Token:
-    def __init__(self, tokenType, tokenValue = None):
+    def __init__(self, tokenType, tokenValue = None, posStart = None, posEnd = None):
         self.type = tokenType
         self.value = tokenValue
+
+        if posStart:
+            self.posStart = posStart.copy()
+            self.posEnd = posStart.copy()
+            self.posEnd.advance()
+
+        if posEnd:
+            self.posEnd = posEnd
 
     def __repr__(self):
         if self.value:
@@ -97,22 +111,22 @@ class Lexer:
             if self.currentChar in ' \t\n':
                 self.advance()
             elif self.currentChar == '+':
-                tokens.append(Token(TT_PLUS))
+                tokens.append(Token(TT_PLUS, posStart=self.position))
                 self.advance()
             elif self.currentChar == '-':
-                tokens.append(Token(TT_MINUS))
+                tokens.append(Token(TT_MINUS, posStart=self.position))
                 self.advance()
             elif self.currentChar == '*':
-                tokens.append(Token(TT_MUL))
+                tokens.append(Token(TT_MUL, posStart=self.position))
                 self.advance()
             elif self.currentChar == '/':
-                tokens.append(Token(TT_DIV))
+                tokens.append(Token(TT_DIV, posStart=self.position))
                 self.advance()
             elif self.currentChar == '(':
-                tokens.append(Token(TT_LPAREN))
+                tokens.append(Token(TT_LPAREN, posStart=self.position))
                 self.advance()
             elif self.currentChar == ')':
-                tokens.append(Token(TT_RPAREN))
+                tokens.append(Token(TT_RPAREN, posStart=self.position))
                 self.advance()
             elif self.currentChar in DIGITS:
                 tokens.append(self.makeNumberToken())
@@ -121,11 +135,13 @@ class Lexer:
                 pos_start = self.position.copy()
                 currentChar = self.currentChar
                 return None, IllegalCharacterError(currentChar, pos_start, self.position.advance())
+        tokens.append(Token(TT_EOF, posStart=self.position))
         return tokens, None
 
     def makeNumberToken(self):
         numStr = ''
         dot_count = 0
+        pos_start = self.position.copy()
 
         while self.currentChar != None and (self.currentChar in DIGITS or self.currentChar == DOT):
             if self.currentChar == DOT:
@@ -134,10 +150,11 @@ class Lexer:
                 dot_count += 1
             numStr += self.currentChar
             self.advance()
+
         if dot_count == 1:
-            return Token(TT_FLOAT, float(numStr))
+            return Token(TT_FLOAT, float(numStr), posStart=pos_start, posEnd=self.position)
         else:
-            return Token(TT_INT, int(numStr))
+            return Token(TT_INT, int(numStr), posStart=pos_start, posEnd=self.position)
 #############
 #NODES
 ###############
@@ -165,13 +182,13 @@ class BinaryOpNode:
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
-        self.currentToken = None
         self.tokenIndex = -1
         self.advance()
 
     def advance(self):
         self.tokenIndex += 1
-        self.currentToken = self.tokens[self.tokenIndex] if self.tokenIndex < len(self.tokens) else None
+        if self.tokenIndex < len(self.tokens):
+            self.currentToken = self.tokens[self.tokenIndex]
         return self.currentToken
 
     def factor(self):
@@ -188,7 +205,7 @@ class Parser:
 
     def binaryOp(self, func, tokenTypes):
         leftNode = func()
-        while(self.currentToken != None and self.currentToken.type in tokenTypes):
+        while(self.currentToken.type in tokenTypes):
             opToken = self.currentToken
             self.advance()
             rightNode = func()
@@ -196,7 +213,12 @@ class Parser:
         return leftNode
 
     def parse(self):
-        return self.expression(), None
+        result, error = self.expression(), None
+        print("self.currentToken", self.currentToken)
+        if self.currentToken.type != TT_EOF:
+            #math symbol is missing
+            result, error = None, InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd)
+        return result, error
 
 #############
 #RUN
