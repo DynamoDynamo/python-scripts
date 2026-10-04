@@ -13,8 +13,8 @@ class Error:
         self.pos_end = pos_end
 
     def __repr__(self):
-        errMsg =  f'{self.type}:{self.details}\n'
-        errMsg += f'File {self.pos_start.fn}, line {self.pos_start.ln + 1}\n'
+        errMsg =  f'{self.type}: {self.details}\n'
+        errMsg += f'File: {self.pos_start.fn}, line: {self.pos_start.ln + 1}\n'
         errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
         return errMsg
 
@@ -175,6 +175,13 @@ class BinaryOpNode:
     def __repr__(self):
         return f'({self.leftNode} {self.opToken} {self.rightNode})'
 
+class UnaryNode:
+    def __init__(self, operatorToken, rightNode):
+        self.opToken = operatorToken
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.opToken} {self.rightNode})'
 #############
 #PARSE RESULT
 ###############
@@ -221,6 +228,13 @@ class Parser:
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advance()
             return parseResultInstance.registerSuccess(NumberNode(token))
+        elif(token.type in (TT_PLUS, TT_MINUS)):
+            self.advance()
+            rightNode =  parseResultInstance.registerErrorAndGetNode(self.factor())
+            if parseResultInstance.error:
+                return parseResultInstance
+            return parseResultInstance.registerSuccess(
+                UnaryNode(token, rightNode))
         else:
             self.advance()
             return parseResultInstance.registerFailure(
@@ -251,7 +265,7 @@ class Parser:
         parseResult = self.expression()
         if not parseResult.error and self.currentToken.type != TT_EOF:
             #math symbol is missing
-            return parseResult.registerFailure(
+            parseResult.registerFailure(
                 InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
         return parseResult.node, parseResult.error
 
