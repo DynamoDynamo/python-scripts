@@ -13,8 +13,8 @@ class Error:
         self.pos_end = pos_end
 
     def __repr__(self):
-        errMsg =  f'{self.type}:{self.details}\n'
-        errMsg += f'File {self.pos_start.fn}, line {self.pos_start.ln + 1}\n'
+        errMsg =  f'{self.type}: {self.details}\n'
+        errMsg += f'File: {self.pos_start.fn}, line: {self.pos_start.ln + 1}\n'
         errMsg += string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
         return errMsg
 
@@ -174,6 +174,29 @@ class BinaryOpNode:
 
     def __repr__(self):
         return f'({self.leftNode} {self.opToken} {self.rightNode})'
+#############
+#PARSE RESULT
+###############
+
+class ParseResult:
+    def __init__(self):
+        self.node = None
+        self.error = None
+
+    def registerSuccess(self, node):
+        self.node = node
+        return self
+
+    def registerFailure(self, error):
+        self.error = error 
+        return self
+
+    def setErrorAndGetNode(self, nodeOrParseResult):
+        if isinstance(nodeOrParseResult, ParseResult):
+            if nodeOrParseResult.error:
+                self.error = nodeOrParseResult.error
+            return nodeOrParseResult.node
+        return nodeOrParseResult
 
 #############
 #PARSER
@@ -192,10 +215,14 @@ class Parser:
         return self.currentToken
 
     def factor(self):
+        parseResult = ParseResult()
         token = self.currentToken
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advance()
-            return NumberNode(token)
+            return parseResult.registerSuccess(NumberNode(token))
+        else:
+            return parseResult.registerFailure(
+                InvalidSyntaxError("Number is missing", token.posStart, token.posEnd))
 
     def term(self):
         return self.binaryOp(self.factor, (TT_MUL, TT_DIV))
@@ -204,21 +231,26 @@ class Parser:
             return self.binaryOp(self.term, (TT_PLUS, TT_MINUS))
 
     def binaryOp(self, func, tokenTypes):
-        leftNode = func()
+        parseResult = ParseResult()
+        leftNode = parseResult.setErrorAndGetNode(func())
+        if parseResult.error:
+            return parseResult
         while(self.currentToken.type in tokenTypes):
             opToken = self.currentToken
             self.advance()
-            rightNode = func()
+            rightNode = parseResult.setErrorAndGetNode(func())
+            if parseResult.error:
+                return parseResult
             leftNode = BinaryOpNode(leftNode, opToken, rightNode)
-        return leftNode
+        return parseResult.registerSuccess(leftNode)
 
     def parse(self):
-        result, error = self.expression(), None
-        print("self.currentToken", self.currentToken)
-        if self.currentToken.type != TT_EOF:
+        parseResult = self.expression()
+        if not parseResult.error and self.currentToken.type != TT_EOF:
             #math symbol is missing
-            result, error = None, InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd)
-        return result, error
+            parseResult.registerFailure(
+                InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
+        return parseResult.node, parseResult.error
 
 #############
 #RUN
