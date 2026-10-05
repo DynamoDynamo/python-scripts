@@ -174,6 +174,14 @@ class BinaryOpNode:
 
     def __repr__(self):
         return f'({self.leftNode} {self.opToken} {self.rightNode})'
+
+class UnaryNode:
+    def __init__(self, operatorToken, rightNode):
+        self.opToken = operatorToken
+        self.rightNode = rightNode
+
+    def __repr__(self):
+        return f'({self.opToken} {self.rightNode})'
 #############
 #PARSE RESULT
 ###############
@@ -220,6 +228,12 @@ class Parser:
         if(token.type in (TT_INT, TT_FLOAT)):
             self.advance()
             return parseResult.registerSuccess(NumberNode(token))
+        elif(token.type in (TT_PLUS, TT_MINUS)):
+            self.advance()
+            rightNode = parseResult.setErrorAndGetNode(self.factor())
+            if parseResult.error:
+                return parseResult
+            return parseResult.registerSuccess(UnaryNode(token, rightNode))
         else:
             return parseResult.registerFailure(
                 InvalidSyntaxError("Number is missing", token.posStart, token.posEnd))
