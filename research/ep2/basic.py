@@ -268,10 +268,11 @@ class Parser:
     def parse(self):
         astS = []
         parseResult = self.expression()
-        if not parseResult.error and self.currentToken.type != TT_EOF:
+        if not parseResult.error and (self.currentToken.type != TT_EOF or self.currentToken.type != TT_NEXTLINE):
             #math symbol is missing
             parseResult.registerFailure(
                 InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
+            return None, parseResult.error
         astS.append(parseResult.node)
         return astS, None
 
