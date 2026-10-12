@@ -216,6 +216,7 @@ class ParseResult:
 
 class Parser:
     def __init__(self, tokens):
+        self.astS =[]
         self.tokens = tokens
         self.tokenIndex = -1
         self.advance()
@@ -266,25 +267,21 @@ class Parser:
         return parseResult.registerSuccess(leftNode)
 
     def parse(self):
-        astS = []
-        parseResult = self.expression()
-        parseError = self.getParseError(parseResult)
+        parseError = self.parseExpression()
         if(parseError):
             return None, parseError
-        else: 
-            astS.append(parseResult.node)
+    
         while self.currentToken.type == TT_NEXTLINE:
-            astS.append(self.currentToken)
+            self.astS.append(self.currentToken)
             self.advance()
-            parseResult = self.expression()
-            parseError = self.getParseError(parseResult)
+            parseError = self.parseExpression()
             if(parseError):
-                return None, parseError
-            else: 
-                astS.append(parseResult.node)
-        return astS, None
+                return None, parseError     
+               
+        return self.astS, None
 
-    def getParseError(self, parseResult):
+    def parseExpression(self):
+        parseResult = self.expression()
         if parseResult.error:
             return parseResult.error
         elif not parseResult.error and self.currentToken.type != TT_EOF and self.currentToken.type != TT_NEXTLINE:
@@ -293,6 +290,7 @@ class Parser:
                 InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
             return parseResult.error
         else:
+            self.astS.append(parseResult.node)
             None
 
 #############
