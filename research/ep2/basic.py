@@ -282,7 +282,7 @@ class Parser:
             parseResult = self.expression()
             if parseResult.error:
                 return None, parseResult.error
-            elif parseResult.error and self.currentToken.type != TT_NEXTLINE:
+            elif not parseResult.error and self.currentToken.type != TT_NEXTLINE:
                 #math symbol is missing
                 parseResult.registerFailure(
                     InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
