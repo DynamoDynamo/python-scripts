@@ -44,6 +44,7 @@ TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 
 TT_EOF = 'EOF'
+TT_NEXTLINE = 'NEXT'
 
 class Token:
     def __init__(self, tokenType, tokenValue = None, posStart = None, posEnd = None):
@@ -108,7 +109,10 @@ class Lexer:
         tokens = []
 
         while self.currentChar != None:
-            if self.currentChar in ' \t\n':
+            if self.currentChar in ' \t':
+                self.advance()
+            elif self.currentChar == '\n':
+                tokens.append(Token(TT_NEXTLINE, posStart=self.position))
                 self.advance()
             elif self.currentChar == '+':
                 tokens.append(Token(TT_PLUS, posStart=self.position))
@@ -262,12 +266,14 @@ class Parser:
         return parseResult.registerSuccess(leftNode)
 
     def parse(self):
+        astS = []
         parseResult = self.expression()
         if not parseResult.error and self.currentToken.type != TT_EOF:
             #math symbol is missing
             parseResult.registerFailure(
                 InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
-        return parseResult.node, parseResult.error
+        astS.append(parseResult.node)
+        return astS, None
 
 #############
 #RUN
@@ -275,6 +281,7 @@ class Parser:
 
 def run(userInput, fileName):
     lexerInstance = Lexer(userInput, fileName)
+    # return lexerInstance.makeTokens()
     tokens, error =  lexerInstance.makeTokens()
 
     if error:
