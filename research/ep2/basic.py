@@ -268,28 +268,32 @@ class Parser:
     def parse(self):
         astS = []
         parseResult = self.expression()
-        if parseResult.error:
-                    return None, parseResult.error
-        elif not parseResult.error  and self.currentToken.type != TT_EOF and self.currentToken.type != TT_NEXTLINE:
-            #math symbol is missing
-            parseResult.registerFailure(
-                InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
-            return None, parseResult.error
-        astS.append(parseResult.node)
+        parseError = self.getParseError(parseResult)
+        if(parseError):
+            return None, parseError
+        else: 
+            astS.append(parseResult.node)
         while self.currentToken.type == TT_NEXTLINE:
             astS.append(self.currentToken)
             self.advance()
             parseResult = self.expression()
-            if parseResult.error:
-                return None, parseResult.error
-            elif not parseResult.error and self.currentToken.type != TT_NEXTLINE:
-                #math symbol is missing
-                parseResult.registerFailure(
-                    InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
-                return None, parseResult.error
-            else:
+            parseError = self.getParseError(parseResult)
+            if(parseError):
+                return None, parseError
+            else: 
                 astS.append(parseResult.node)
         return astS, None
+
+    def getParseError(self, parseResult):
+        if parseResult.error:
+            return parseResult.error
+        elif not parseResult.error and self.currentToken.type != TT_EOF and self.currentToken.type != TT_NEXTLINE:
+            #math symbol is missing
+            parseResult.registerFailure(
+                InvalidSyntaxError("Math symbol is missing + - * /", self.currentToken.posStart, self.currentToken.posEnd))
+            return parseResult.error
+        else:
+            None
 
 #############
 #RUN
